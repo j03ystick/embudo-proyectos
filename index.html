@@ -37,62 +37,110 @@
     <div class="listas" id="listas"></div>
   </div>
 
+  <!-- Librería que permite leer archivos de Excel desde la página -->
+  <script src="lib/xlsx.full.min.js"></script>
   <script>
+    // ===== Configuración =====
+    var ARCHIVO_EXCEL = "proyectos.xlsx";
+    var PESTANA_PROYECTOS = "Proyectos";
+    var PESTANA_PARAMETROS = "PARAMETROS";
+
+    // Botones de "Agrupar por". ordenFijo = respeta el orden de PARAMETROS (como las etapas)
+    var AGRUPAR_POR = [
+      { campo: "etapa",       titulo: "Etapa",       ordenFijo: true },
+      { campo: "coordinador", titulo: "Coordinador", ordenFijo: false }
+    ];
+
     // Colores que se usan cuando el grupo no tiene color propio (por ejemplo, cada coordinador)
     var PALETA = ["#5B8DEF", "#7A6FE0", "#E0A030", "#E07040", "#3BA272", "#D45087", "#2CA6B0", "#8C6D46", "#6B7A8F", "#B85FC2"];
     var COLOR_SIN_DATO = "#9CA3AF";
 
     // Lo que el usuario eligió en pantalla
-    var estado = {
-      agruparPor: "etapa",     // campo por el que se agrupa
-      orden: "mayor",          // "mayor" = ancho arriba; "menor" = angosto arriba
-      seleccionado: null       // grupo en el que se hizo clic
-    };
+    var estado = { agruparPor: "etapa", orden: "mayor", seleccionado: null };
     var datos = null;
 
-    // 1) Leemos los datos del archivo projects.json
-    fetch("projects.json?v=" + Date.now())
-      .then(function (respuesta) { return respuesta.json(); })
-      .then(function (json) { datos = json; iniciar(); })
-      .catch(function () {
+    // Convierte un encabezado de Excel en un nombre de campo: "Área" -> "area"
+    function normalizar(texto) {
+      return texto.toString().trim().toLowerCase()
+        .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "_");
+    }
+
+    // 1) Leemos el archivo de Excel
+    var fechaArchivo = null;
+    fetch(ARCHIVO_EXCEL + "?v=" + Date.now())
+      .then(function (r) {
+        if (!r.ok) throw new Error("No se encontró " + ARCHIVO_EXCEL);
+        fechaArchivo = r.headers.get("Last-Modified");
+        return r.arrayBuffer();
+      })
+      .then(function (bytes) { datos = leerExcel(bytes); iniciar(); })
+      .catch(function (e) {
         document.getElementById("listas").innerHTML =
-          '<div class="error">No se pudo leer projects.json. Revisa que el archivo exista y no tenga errores (comas, comillas).</div>';
+          '<div class="error">No se pudo leer el Excel: ' + e.message + '</div>';
       });
 
+    function leerExcel(bytes) {
+      var libro = XLSX.read(bytes, { type: "array" });
+      var hojaProy = libro.Sheets[PESTANA_PROYECTOS];
+      var hojaParam = libro.Sheets[PESTANA_PARAMETROS];
+      if (!hojaProy) throw new Error('falta la pestaña "' + PESTANA_PROYECTOS + '"');
+      if (!hojaParam) throw new Error('falta la pestaña "' + PESTANA_PARAMETROS + '"');
+
+      // Proyectos: cada fila es un proyecto; los encabezados se vuelven nombres de campo
+      var proyectos = XLSX.utils.sheet_to_json(hojaProy, { defval: "" }).map(function (fila) {
+        var p = {};
+        Object.keys(fila).forEach(function (col) {
+          var campo = normalizar(col);
+          if (campo === "proyecto") campo = "nombre";
+          p[campo] = fila[col].toString().trim();
+        });
+        return p;
+      }).filter(function (p) { return p.nombre; });   // ignora filas vacías
+
+      // PARAMETROS: columnas Etapa, Color y Coordinador
+      var filas = XLSX.utils.sheet_to_json(hojaParam, { defval: "" });
+      var etapas = [], coordinadores = [];
+      filas.forEach(function (f) {
+        var etapa = (f["Etapa"] || "").toString().trim();
+        var color = (f["Color"] || "").toString().trim();
+        var coord = (f["Coordinador"] || "").toString().trim();
+        if (etapa) etapas.push({ nombre: etapa, color: /^#[0-9a-f]{6}$/i.test(color) ? color : null });
+        if (coord) coordinadores.push({ nombre: coord, color: null });
+      });
+
+      return { proyectos: proyectos, listas: { etapa: etapas, coordinador: coordinadores } };
+    }
+
     function iniciar() {
-      document.getElementById("titulo").textContent = datos.titulo || "Embudo de Proyectos";
-      document.title = datos.titulo || "Embudo de Proyectos";
-      if (datos.actualizado) {
-        document.getElementById("actualizado").textContent = "Datos actualizados al " + datos.actualizado;
+      if (fechaArchivo) {
+        var f = new Date(fechaArchivo);
+        document.getElementById("actualizado").textContent = "Datos actualizados el " +
+          f.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }) + " a las " +
+          f.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
       }
       document.getElementById("resumen").innerHTML =
         "Total de proyectos: <strong>" + datos.proyectos.length + "</strong>";
 
-      // Botones de "Agrupar por" (salen de "agrupar_por" en projects.json)
-      var opciones = datos.agrupar_por || [{ campo: "etapa", titulo: "Etapa" }];
-      estado.agruparPor = opciones[0].campo;
       var cont = document.getElementById("botonesAgrupar");
-      opciones.forEach(function (op) {
+      AGRUPAR_POR.forEach(function (op) {
         var b = document.createElement("button");
         b.textContent = op.titulo;
         b.dataset.campo = op.campo;
         b.onclick = function () { estado.agruparPor = op.campo; estado.seleccionado = null; dibujarTodo(); };
         cont.appendChild(b);
       });
-
-      // Botones de "Orden"
       document.querySelectorAll("#botonesOrden button").forEach(function (b) {
         b.onclick = function () { estado.orden = b.dataset.orden; dibujarTodo(); };
       });
-
       dibujarTodo();
     }
 
     // 2) Armamos los grupos: cada grupo tiene nombre, color y su lista de proyectos
     function armarGrupos() {
       var campo = estado.agruparPor;
-      var grupos = [];
-      var porNombre = {};
+      var config = AGRUPAR_POR.filter(function (o) { return o.campo === campo; })[0];
+      var lista = datos.listas[campo] || [];
+      var grupos = [], porNombre = {};
 
       function agregarGrupo(nombre, color) {
         if (porNombre[nombre]) return;              // evita grupos repetidos
@@ -100,25 +148,21 @@
         grupos.push(porNombre[nombre]);
       }
 
-      // Si agrupamos por etapa, usamos el orden y colores de "etapas" en projects.json
-      if (campo === "etapa") {
-        (datos.etapas || []).forEach(function (e) { agregarGrupo(e.nombre, e.color); });
-      }
+      // Primero, los valores dados de alta en PARAMETROS (aunque no tengan proyectos)
+      lista.forEach(function (e) { agregarGrupo(e.nombre, e.color); });
 
       datos.proyectos.forEach(function (p) {
-        var valor = (p[campo] || "").toString().trim();
+        var valor = p[campo] || "";
         var nombre = valor || "Sin " + campo;
-        // Una etapa escrita en un proyecto pero que no existe en "etapas" se marca para que se note
-        if (campo === "etapa" && valor && !porNombre[nombre]) nombre = valor + " (no está en la lista de etapas)";
+        // Un valor escrito en un proyecto pero que no existe en PARAMETROS se marca para que se note
+        if (valor && lista.length && !porNombre[nombre]) nombre = valor + " (no está en PARAMETROS)";
         agregarGrupo(nombre, null);
         porNombre[nombre].proyectos.push(p);
       });
 
-      if (campo === "etapa") {
-        // Las etapas mantienen su orden; "menor a mayor" las pone al revés
+      if (config && config.ordenFijo) {
         if (estado.orden === "menor") grupos.reverse();
       } else {
-        // Otros campos (coordinador, etc.) se ordenan por cantidad de proyectos
         grupos.sort(function (a, b) {
           var dif = b.proyectos.length - a.proyectos.length;
           if (estado.orden === "menor") dif = -dif;
@@ -126,10 +170,9 @@
         });
       }
 
-      // Colores para los grupos que no tienen uno propio
       var i = 0;
       grupos.forEach(function (g) {
-        if (!g.color) g.color = /^Sin |no está en la lista/.test(g.nombre) ? COLOR_SIN_DATO : PALETA[i++ % PALETA.length];
+        if (!g.color) g.color = /^Sin |no está en PARAMETROS/.test(g.nombre) ? COLOR_SIN_DATO : PALETA[i++ % PALETA.length];
       });
       return grupos;
     }
@@ -177,36 +220,34 @@
     function dibujarListas(grupos) {
       var listas = document.getElementById("listas");
       listas.innerHTML = "";
-      // En cada proyecto mostramos los datos que NO son el campo por el que agrupamos
-      var otros = ["etapa", "coordinador", "area"].filter(function (c) { return c !== estado.agruparPor; });
 
       grupos.forEach(function (g) {
         if (estado.seleccionado && estado.seleccionado !== g.nombre) return;
 
         var columna = document.createElement("div");
         columna.className = "columna";
-
         var titulo = document.createElement("h2");
         titulo.style.background = g.color;
         titulo.textContent = g.nombre + " (" + g.proyectos.length + ")";
         columna.appendChild(titulo);
 
-        var lista = document.createElement("ul");
-        if (g.proyectos.length === 0) {
-          lista.innerHTML = '<li class="vacio">Sin proyectos</li>';
-        }
+        var ul = document.createElement("ul");
+        if (g.proyectos.length === 0) ul.innerHTML = '<li class="vacio">Sin proyectos</li>';
         g.proyectos.forEach(function (p) {
           var item = document.createElement("li");
           var nombre = document.createElement("div");
           nombre.textContent = p.nombre;
+          // Debajo del nombre mostramos los demás datos del proyecto (excepto el campo con el que agrupamos)
           var detalle = document.createElement("div");
           detalle.className = "detalle";
-          detalle.textContent = otros.map(function (c) { return p[c]; }).filter(Boolean).join(" · ");
+          detalle.textContent = Object.keys(p)
+            .filter(function (c) { return c !== "nombre" && c !== estado.agruparPor; })
+            .map(function (c) { return p[c]; }).filter(Boolean).join(" · ");
           item.appendChild(nombre);
           item.appendChild(detalle);
-          lista.appendChild(item);
+          ul.appendChild(item);
         });
-        columna.appendChild(lista);
+        columna.appendChild(ul);
         listas.appendChild(columna);
       });
     }
