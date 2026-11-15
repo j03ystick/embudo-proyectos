@@ -2,7 +2,7 @@
   "titulo": "Embudo de Proyectos",
   "actualizado": "2026-11-15",
   "etapas": [
-    { "nombre": "Idea",         "color": "#5B8DEF" },
+    { "nombre": "Aprobado",         "color": "#5B8DEF" },
     { "nombre": "Evaluación",   "color": "#7A6FE0" },
     { "nombre": "Aprobado",     "color": "#E0A030" },
     { "nombre": "En ejecución", "color": "#E07040" },
