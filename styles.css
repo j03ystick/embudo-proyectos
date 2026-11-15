@@ -158,3 +158,93 @@ header p  { margin: 0; color: var(--texto-suave); }
   .etapa { height: 54px; }
   .etapa .nombre { font-size: 14px; }
 }
+
+/* ===== Botón y panel de Parámetros ===== */
+.boton-parametros {
+  margin-left: auto;
+  border: 1px solid var(--borde);
+  background: var(--tarjeta);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.boton-parametros:hover { background: #eef1f6; }
+
+.fondo-panel {
+  position: fixed; inset: 0;
+  background: rgba(17, 24, 39, .45);
+  display: none;
+  align-items: flex-start; justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  z-index: 10;
+}
+.fondo-panel.abierto { display: flex; }
+
+.panel {
+  background: var(--tarjeta);
+  border-radius: 12px;
+  width: 100%; max-width: 720px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.2);
+}
+.panel h2 { margin: 0 0 4px; font-size: 20px; }
+.panel .sub { margin: 0 0 16px; color: var(--texto-suave); font-size: 14px; }
+
+.panel-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 600px) { .panel-columnas { grid-template-columns: 1fr; } }
+
+.panel h3 { font-size: 15px; margin: 0 0 8px; }
+.lista-param { list-style: none; margin: 0 0 8px; padding: 0; }
+.lista-param li {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.lista-param .muestra { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.lista-param .texto { flex: 1; }
+.lista-param button, .agregar button, .acciones button, .faltantes button, .token-fila button {
+  border: 1px solid var(--borde);
+  background: #fff;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.lista-param button:hover { background: #eef1f6; }
+.lista-param button:disabled { opacity: .3; cursor: default; }
+
+.agregar { display: flex; gap: 6px; }
+.agregar input, .token-fila input {
+  flex: 1; min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  font-family: inherit; font-size: 14px;
+}
+
+.faltantes {
+  margin-top: 8px;
+  font-size: 13px;
+  background: #fff7e6;
+  border: 1px solid #f5d9a8;
+  border-radius: 8px;
+  padding: 8px;
+}
+.faltantes button { margin: 4px 4px 0 0; }
+
+.guardar-zona { margin-top: 20px; border-top: 1px solid var(--borde); padding-top: 16px; }
+.token-fila { display: flex; gap: 6px; margin: 6px 0 10px; }
+.acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.acciones .principal { background: #1f2937; color: #fff; border-color: #1f2937; padding: 8px 14px; font-size: 14px; }
+.acciones .secundario { padding: 8px 14px; font-size: 14px; }
+.mensaje { font-size: 14px; }
+.mensaje.ok { color: #1f7a4d; }
+.mensaje.mal { color: #9b1c1c; }
+.nota-token { font-size: 13px; color: var(--texto-suave); margin: 0; }

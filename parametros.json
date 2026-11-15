@@ -1,0 +1,4 @@
+{
+  "etapas": ["Idea", "Evaluación", "Aprobado", "En ejecución", "Cerrado"],
+  "coordinadores": ["Ana López", "Carlos Ruiz", "Jorge Torres", "Laura Méndez", "Luis Gómez", "María Pérez", "Pedro Sánchez", "Sofía Díaz"]
+}

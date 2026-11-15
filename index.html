@@ -14,7 +14,7 @@
       <div class="resumen" id="resumen"></div>
     </header>
 
-    <!-- Botones para elegir cómo agrupar y en qué orden -->
+    <!-- Botones para elegir cómo agrupar, en qué orden, y abrir Parámetros -->
     <div class="controles">
       <div class="control">
         <span class="etiqueta">Agrupar por:</span>
@@ -27,6 +27,7 @@
           <button data-orden="menor">Menor a mayor</button>
         </div>
       </div>
+      <button class="boton-parametros" id="abrirParametros">⚙ Parámetros</button>
     </div>
 
     <!-- Aquí se dibuja el embudo -->
@@ -37,27 +38,76 @@
     <div class="listas" id="listas"></div>
   </div>
 
+  <!-- ===== Panel de Parámetros (se abre con el botón ⚙) ===== -->
+  <div class="fondo-panel" id="fondoPanel">
+    <div class="panel">
+      <h2>Parámetros</h2>
+      <p class="sub">Agrega, quita u ordena las etapas y los coordinadores. Los cambios se ven en el embudo al momento. Los colores se asignan solos.</p>
+
+      <div class="panel-columnas">
+        <div>
+          <h3>Etapas <span style="font-weight:normal;color:#6b7280">(en orden del embudo)</span></h3>
+          <ul class="lista-param" id="listaEtapas"></ul>
+          <div class="agregar">
+            <input id="nuevaEtapa" placeholder="Nueva etapa">
+            <button data-agregar="etapas">Agregar</button>
+          </div>
+          <div id="faltanEtapas"></div>
+        </div>
+        <div>
+          <h3>Coordinadores</h3>
+          <ul class="lista-param" id="listaCoordinadores"></ul>
+          <div class="agregar">
+            <input id="nuevoCoordinador" placeholder="Nuevo coordinador">
+            <button data-agregar="coordinadores">Agregar</button>
+          </div>
+          <div id="faltanCoordinadores"></div>
+        </div>
+      </div>
+
+      <div class="guardar-zona">
+        <p class="nota-token">Para que los cambios los vean <strong>todos</strong>, hay que guardarlos. Solo quien tenga la <strong>clave de GitHub</strong> puede guardar (se pide una sola vez y se queda en esta computadora).</p>
+        <div class="token-fila" id="filaToken">
+          <input id="token" type="password" placeholder="Pega aquí tu clave de GitHub" autocomplete="off">
+        </div>
+        <div class="acciones">
+          <button class="principal" id="guardar">Guardar para todos</button>
+          <button class="secundario" id="descartar">Descartar cambios</button>
+          <button class="secundario" id="cerrar">Cerrar</button>
+          <span class="mensaje" id="mensaje"></span>
+        </div>
+        <p class="nota-token" id="olvidarZona" style="margin-top:10px;display:none">
+          Clave guardada en esta computadora. <a href="#" id="olvidarToken">Olvidar clave</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
   <!-- Librería que permite leer archivos de Excel desde la página -->
   <script src="lib/xlsx.full.min.js"></script>
   <script>
     // ===== Configuración =====
     var ARCHIVO_EXCEL = "proyectos.xlsx";
     var PESTANA_PROYECTOS = "Proyectos";
-    var PESTANA_PARAMETROS = "PARAMETROS";
+    var ARCHIVO_PARAMETROS = "parametros.json";
+    var REPO = "j03ystick/embudo-proyectos";   // dónde se guardan los parámetros
 
-    // Botones de "Agrupar por". ordenFijo = respeta el orden de PARAMETROS (como las etapas)
+    // Botones de "Agrupar por". lista = qué lista de Parámetros usa. ordenFijo = respeta el orden de la lista
     var AGRUPAR_POR = [
-      { campo: "etapa",       titulo: "Etapa",       ordenFijo: true },
-      { campo: "coordinador", titulo: "Coordinador", ordenFijo: false }
+      { campo: "etapa",       titulo: "Etapa",       lista: "etapas",        ordenFijo: true },
+      { campo: "coordinador", titulo: "Coordinador", lista: "coordinadores", ordenFijo: false }
     ];
 
-    // Colores que se usan cuando el grupo no tiene color propio (por ejemplo, cada coordinador)
+    // Paleta de colores: se asignan solos, en orden
     var PALETA = ["#5B8DEF", "#7A6FE0", "#E0A030", "#E07040", "#3BA272", "#D45087", "#2CA6B0", "#8C6D46", "#6B7A8F", "#B85FC2"];
     var COLOR_SIN_DATO = "#9CA3AF";
 
-    // Lo que el usuario eligió en pantalla
     var estado = { agruparPor: "etapa", orden: "mayor", seleccionado: null };
-    var datos = null;
+    var proyectos = [];
+    var parametros = { etapas: [], coordinadores: [] };   // lo que se ve (puede tener cambios sin guardar)
+    var parametrosGuardados = null;                       // lo último guardado
+
+    function copiar(obj) { return JSON.parse(JSON.stringify(obj)); }
 
     // Convierte un encabezado de Excel en un nombre de campo: "Área" -> "area"
     function normalizar(texto) {
@@ -65,29 +115,32 @@
         .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "_");
     }
 
-    // 1) Leemos el archivo de Excel
+    // ===== 1) Leer el Excel y los parámetros =====
     var fechaArchivo = null;
-    fetch(ARCHIVO_EXCEL + "?v=" + Date.now())
-      .then(function (r) {
+    Promise.all([
+      fetch(ARCHIVO_EXCEL + "?v=" + Date.now()).then(function (r) {
         if (!r.ok) throw new Error("No se encontró " + ARCHIVO_EXCEL);
         fechaArchivo = r.headers.get("Last-Modified");
         return r.arrayBuffer();
+      }),
+      fetch(ARCHIVO_PARAMETROS + "?v=" + Date.now()).then(function (r) {
+        if (!r.ok) throw new Error("No se encontró " + ARCHIVO_PARAMETROS);
+        return r.json();
       })
-      .then(function (bytes) { datos = leerExcel(bytes); iniciar(); })
-      .catch(function (e) {
-        document.getElementById("listas").innerHTML =
-          '<div class="error">No se pudo leer el Excel: ' + e.message + '</div>';
-      });
+    ]).then(function (res) {
+      proyectos = leerExcel(res[0]);
+      parametros = { etapas: res[1].etapas || [], coordinadores: res[1].coordinadores || [] };
+      parametrosGuardados = copiar(parametros);
+      iniciar();
+    }).catch(function (e) {
+      document.getElementById("listas").innerHTML =
+        '<div class="error">No se pudieron leer los datos: ' + e.message + '</div>';
+    });
 
     function leerExcel(bytes) {
       var libro = XLSX.read(bytes, { type: "array" });
-      var hojaProy = libro.Sheets[PESTANA_PROYECTOS];
-      var hojaParam = libro.Sheets[PESTANA_PARAMETROS];
-      if (!hojaProy) throw new Error('falta la pestaña "' + PESTANA_PROYECTOS + '"');
-      if (!hojaParam) throw new Error('falta la pestaña "' + PESTANA_PARAMETROS + '"');
-
-      // Proyectos: cada fila es un proyecto; los encabezados se vuelven nombres de campo
-      var proyectos = XLSX.utils.sheet_to_json(hojaProy, { defval: "" }).map(function (fila) {
+      var hoja = libro.Sheets[PESTANA_PROYECTOS] || libro.Sheets[libro.SheetNames[0]];
+      return XLSX.utils.sheet_to_json(hoja, { defval: "" }).map(function (fila) {
         var p = {};
         Object.keys(fila).forEach(function (col) {
           var campo = normalizar(col);
@@ -96,19 +149,6 @@
         });
         return p;
       }).filter(function (p) { return p.nombre; });   // ignora filas vacías
-
-      // PARAMETROS: columnas Etapa, Color y Coordinador
-      var filas = XLSX.utils.sheet_to_json(hojaParam, { defval: "" });
-      var etapas = [], coordinadores = [];
-      filas.forEach(function (f) {
-        var etapa = (f["Etapa"] || "").toString().trim();
-        var color = (f["Color"] || "").toString().trim();
-        var coord = (f["Coordinador"] || "").toString().trim();
-        if (etapa) etapas.push({ nombre: etapa, color: /^#[0-9a-f]{6}$/i.test(color) ? color : null });
-        if (coord) coordinadores.push({ nombre: coord, color: null });
-      });
-
-      return { proyectos: proyectos, listas: { etapa: etapas, coordinador: coordinadores } };
     }
 
     function iniciar() {
@@ -119,7 +159,7 @@
           f.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
       }
       document.getElementById("resumen").innerHTML =
-        "Total de proyectos: <strong>" + datos.proyectos.length + "</strong>";
+        "Total de proyectos: <strong>" + proyectos.length + "</strong>";
 
       var cont = document.getElementById("botonesAgrupar");
       AGRUPAR_POR.forEach(function (op) {
@@ -132,35 +172,37 @@
       document.querySelectorAll("#botonesOrden button").forEach(function (b) {
         b.onclick = function () { estado.orden = b.dataset.orden; dibujarTodo(); };
       });
+      prepararPanel();
       dibujarTodo();
     }
 
-    // 2) Armamos los grupos: cada grupo tiene nombre, color y su lista de proyectos
+    // ===== 2) Armar los grupos =====
     function armarGrupos() {
-      var campo = estado.agruparPor;
-      var config = AGRUPAR_POR.filter(function (o) { return o.campo === campo; })[0];
-      var lista = datos.listas[campo] || [];
+      var config = AGRUPAR_POR.filter(function (o) { return o.campo === estado.agruparPor; })[0];
+      var campo = config.campo;
+      var lista = parametros[config.lista] || [];
       var grupos = [], porNombre = {};
 
       function agregarGrupo(nombre, color) {
-        if (porNombre[nombre]) return;              // evita grupos repetidos
+        if (porNombre[nombre]) return;
         porNombre[nombre] = { nombre: nombre, color: color, proyectos: [] };
         grupos.push(porNombre[nombre]);
       }
 
-      // Primero, los valores dados de alta en PARAMETROS (aunque no tengan proyectos)
-      lista.forEach(function (e) { agregarGrupo(e.nombre, e.color); });
+      // Primero los valores dados de alta en Parámetros (aunque no tengan proyectos).
+      // El color depende de su lugar en la lista, así cada uno conserva su color.
+      lista.forEach(function (nombre, i) { agregarGrupo(nombre, PALETA[i % PALETA.length]); });
 
-      datos.proyectos.forEach(function (p) {
+      proyectos.forEach(function (p) {
         var valor = p[campo] || "";
         var nombre = valor || "Sin " + campo;
-        // Un valor escrito en un proyecto pero que no existe en PARAMETROS se marca para que se note
-        if (valor && lista.length && !porNombre[nombre]) nombre = valor + " (no está en PARAMETROS)";
-        agregarGrupo(nombre, null);
+        // Un valor del Excel que no existe en Parámetros se marca en gris para que se note
+        if (valor && !porNombre[nombre]) nombre = valor + " (no está en Parámetros)";
+        agregarGrupo(nombre, COLOR_SIN_DATO);
         porNombre[nombre].proyectos.push(p);
       });
 
-      if (config && config.ordenFijo) {
+      if (config.ordenFijo) {
         if (estado.orden === "menor") grupos.reverse();
       } else {
         grupos.sort(function (a, b) {
@@ -169,11 +211,6 @@
           return dif !== 0 ? dif : a.nombre.localeCompare(b.nombre, "es");
         });
       }
-
-      var i = 0;
-      grupos.forEach(function (g) {
-        if (!g.color) g.color = /^Sin |no está en PARAMETROS/.test(g.nombre) ? COLOR_SIN_DATO : PALETA[i++ % PALETA.length];
-      });
       return grupos;
     }
 
@@ -189,7 +226,7 @@
       dibujarListas(grupos);
     }
 
-    // 3) Una barra por grupo; en "mayor a menor" la de arriba es la más ancha
+    // ===== 3) El embudo: una barra por grupo =====
     function dibujarEmbudo(grupos) {
       var embudo = document.getElementById("embudo");
       embudo.innerHTML = "";
@@ -207,7 +244,6 @@
         barra.style.background = g.color;
         barra.innerHTML = '<span class="nombre"></span><span class="cantidad">' + g.proyectos.length + "</span>";
         barra.querySelector(".nombre").textContent = g.nombre;
-
         barra.onclick = function () {
           estado.seleccionado = (estado.seleccionado === g.nombre) ? null : g.nombre;
           dibujarTodo();
@@ -216,7 +252,7 @@
       });
     }
 
-    // 4) Debajo, una columna por grupo con la lista de sus proyectos
+    // ===== 4) Listas de proyectos por grupo =====
     function dibujarListas(grupos) {
       var listas = document.getElementById("listas");
       listas.innerHTML = "";
@@ -237,7 +273,6 @@
           var item = document.createElement("li");
           var nombre = document.createElement("div");
           nombre.textContent = p.nombre;
-          // Debajo del nombre mostramos los demás datos del proyecto (excepto el campo con el que agrupamos)
           var detalle = document.createElement("div");
           detalle.className = "detalle";
           detalle.textContent = Object.keys(p)
@@ -250,6 +285,169 @@
         columna.appendChild(ul);
         listas.appendChild(columna);
       });
+    }
+
+    // ===== 5) Panel de Parámetros =====
+    var CLAVE_TOKEN = "embudo_token_github";
+    function leerToken() { try { return localStorage.getItem(CLAVE_TOKEN) || ""; } catch (e) { return ""; } }
+    function escribirToken(t) { try { t ? localStorage.setItem(CLAVE_TOKEN, t) : localStorage.removeItem(CLAVE_TOKEN); } catch (e) {} }
+
+    function mensaje(texto, tipo) {
+      var m = document.getElementById("mensaje");
+      m.textContent = texto;
+      m.className = "mensaje " + (tipo || "");
+    }
+
+    function prepararPanel() {
+      var fondo = document.getElementById("fondoPanel");
+      document.getElementById("abrirParametros").onclick = function () {
+        mensaje("");
+        mostrarZonaToken();
+        dibujarPanel();
+        fondo.classList.add("abierto");
+      };
+      document.getElementById("cerrar").onclick = function () { fondo.classList.remove("abierto"); };
+      fondo.onclick = function (e) { if (e.target === fondo) fondo.classList.remove("abierto"); };
+
+      document.querySelectorAll("[data-agregar]").forEach(function (b) {
+        var tipo = b.dataset.agregar;
+        var input = document.getElementById(tipo === "etapas" ? "nuevaEtapa" : "nuevoCoordinador");
+        function agregar() { agregarValor(tipo, input.value); input.value = ""; input.focus(); }
+        b.onclick = agregar;
+        input.onkeydown = function (e) { if (e.key === "Enter") agregar(); };
+      });
+
+      document.getElementById("descartar").onclick = function () {
+        parametros = copiar(parametrosGuardados);
+        dibujarPanel(); dibujarTodo();
+        mensaje("Cambios descartados.");
+      };
+      document.getElementById("guardar").onclick = guardar;
+      document.getElementById("olvidarToken").onclick = function (e) {
+        e.preventDefault(); escribirToken(""); mostrarZonaToken();
+      };
+    }
+
+    function mostrarZonaToken() {
+      var hay = !!leerToken();
+      document.getElementById("filaToken").style.display = hay ? "none" : "flex";
+      document.getElementById("olvidarZona").style.display = hay ? "block" : "none";
+    }
+
+    function agregarValor(tipo, texto) {
+      texto = (texto || "").trim();
+      if (!texto) return;
+      var existe = parametros[tipo].some(function (x) { return x.toLowerCase() === texto.toLowerCase(); });
+      if (existe) { mensaje('"' + texto + '" ya está en la lista.', "mal"); return; }
+      parametros[tipo].push(texto);
+      mensaje("");
+      dibujarPanel(); dibujarTodo();
+    }
+
+    function dibujarPanel() {
+      dibujarListaParam("etapas", "listaEtapas", true);
+      dibujarListaParam("coordinadores", "listaCoordinadores", false);
+      dibujarFaltantes("etapas", "etapa", "faltanEtapas");
+      dibujarFaltantes("coordinadores", "coordinador", "faltanCoordinadores");
+    }
+
+    function dibujarListaParam(tipo, idLista, conOrden) {
+      var ul = document.getElementById(idLista);
+      ul.innerHTML = "";
+      var lista = parametros[tipo];
+      if (lista.length === 0) ul.innerHTML = '<li class="vacio">Lista vacía</li>';
+      lista.forEach(function (nombre, i) {
+        var li = document.createElement("li");
+        var muestra = document.createElement("span");
+        muestra.className = "muestra";
+        muestra.style.background = PALETA[i % PALETA.length];
+        var texto = document.createElement("span");
+        texto.className = "texto";
+        texto.textContent = nombre;
+        li.appendChild(muestra);
+        li.appendChild(texto);
+
+        if (conOrden) {
+          li.appendChild(botonPanel("↑", "Subir", i === 0, function () { mover(tipo, i, -1); }));
+          li.appendChild(botonPanel("↓", "Bajar", i === lista.length - 1, function () { mover(tipo, i, 1); }));
+        }
+        li.appendChild(botonPanel("✕", "Quitar", false, function () {
+          lista.splice(i, 1); dibujarPanel(); dibujarTodo();
+        }));
+        ul.appendChild(li);
+      });
+    }
+
+    function botonPanel(texto, titulo, desactivado, accion) {
+      var b = document.createElement("button");
+      b.textContent = texto; b.title = titulo; b.disabled = desactivado; b.onclick = accion;
+      return b;
+    }
+
+    function mover(tipo, i, dir) {
+      var lista = parametros[tipo], j = i + dir;
+      var tmp = lista[i]; lista[i] = lista[j]; lista[j] = tmp;
+      dibujarPanel(); dibujarTodo();
+    }
+
+    // Valores que aparecen en el Excel pero no están en Parámetros: se pueden agregar con un clic
+    function dibujarFaltantes(tipo, campo, idCaja) {
+      var caja = document.getElementById(idCaja);
+      caja.innerHTML = "";
+      var enLista = parametros[tipo].map(function (x) { return x.toLowerCase(); });
+      var faltan = [];
+      proyectos.forEach(function (p) {
+        var v = p[campo];
+        if (v && enLista.indexOf(v.toLowerCase()) === -1 && faltan.indexOf(v) === -1) faltan.push(v);
+      });
+      if (!faltan.length) return;
+      var div = document.createElement("div");
+      div.className = "faltantes";
+      div.appendChild(document.createTextNode("En el Excel pero no en la lista: "));
+      faltan.forEach(function (v) {
+        var b = document.createElement("button");
+        b.textContent = "+ " + v;
+        b.onclick = function () { agregarValor(tipo, v); };
+        div.appendChild(b);
+      });
+      caja.appendChild(div);
+    }
+
+    // Guarda parametros.json en GitHub para que todos vean los cambios
+    function guardar() {
+      var token = leerToken() || document.getElementById("token").value.trim();
+      if (!token) { mensaje("Pega tu clave de GitHub para poder guardar.", "mal"); return; }
+
+      var url = "https://api.github.com/repos/" + REPO + "/contents/" + ARCHIVO_PARAMETROS;
+      var cabeceras = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" };
+      var contenido = JSON.stringify(parametros, null, 2) + "\n";
+      var base64 = btoa(unescape(encodeURIComponent(contenido)));
+      mensaje("Guardando…");
+
+      fetch(url, { headers: cabeceras, cache: "no-store" })
+        .then(function (r) {
+          if (r.status === 401) throw new Error("La clave no es válida.");
+          if (!r.ok) throw new Error("No se pudo leer el archivo actual (error " + r.status + ").");
+          return r.json();
+        })
+        .then(function (actual) {
+          return fetch(url, {
+            method: "PUT",
+            headers: cabeceras,
+            body: JSON.stringify({ message: "Actualizar parámetros desde la página", content: base64, sha: actual.sha })
+          });
+        })
+        .then(function (r) {
+          if (r.status === 401) throw new Error("La clave no es válida.");
+          if (r.status === 403 || r.status === 404) throw new Error("La clave no tiene permiso para guardar en este repositorio.");
+          if (!r.ok) throw new Error("No se pudo guardar (error " + r.status + ").");
+          escribirToken(token);
+          document.getElementById("token").value = "";
+          mostrarZonaToken();
+          parametrosGuardados = copiar(parametros);
+          mensaje("¡Guardado! Los demás lo verán en 1 o 2 minutos.", "ok");
+        })
+        .catch(function (e) { mensaje(e.message, "mal"); });
     }
   </script>
 </body>
