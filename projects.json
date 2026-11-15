@@ -1,0 +1,21 @@
+{
+  "titulo": "Embudo de Proyectos",
+  "actualizado": "2026-11-15",
+  "etapas": [
+    { "nombre": "Idea",         "color": "#5B8DEF" },
+    { "nombre": "Evaluación",   "color": "#7A6FE0" },
+    { "nombre": "Aprobado",     "color": "#E0A030" },
+    { "nombre": "En ejecución", "color": "#E07040" },
+    { "nombre": "Cerrado",      "color": "#3BA272" }
+  ],
+  "proyectos": [
+    { "nombre": "Portal de clientes",         "etapa": "Idea",         "responsable": "Ana López",     "area": "Ventas" },
+    { "nombre": "Automatizar facturación",    "etapa": "Idea",         "responsable": "Carlos Ruiz",   "area": "Finanzas" },
+    { "nombre": "Nuevo almacén norte",        "etapa": "Evaluación",   "responsable": "María Pérez",   "area": "Operaciones" },
+    { "nombre": "Capacitación en seguridad",  "etapa": "Evaluación",   "responsable": "Luis Gómez",    "area": "Recursos Humanos" },
+    { "nombre": "Renovación de equipos",      "etapa": "Aprobado",     "responsable": "Sofía Díaz",    "area": "TI" },
+    { "nombre": "App de inventario",          "etapa": "En ejecución", "responsable": "Jorge Torres",  "area": "TI" },
+    { "nombre": "Campaña de marca 2026",      "etapa": "En ejecución", "responsable": "Laura Méndez",  "area": "Marketing" },
+    { "nombre": "Migración a Microsoft 365",  "etapa": "Cerrado",      "responsable": "Pedro Sánchez", "area": "TI" }
+  ]
+}

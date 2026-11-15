@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embudo de Proyectos</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="contenedor">
+    <header>
+      <h1 id="titulo">Embudo de Proyectos</h1>
+      <p id="actualizado"></p>
+      <div class="resumen" id="resumen"></div>
+    </header>
+
+    <!-- Aquí se dibuja el embudo -->
+    <div class="embudo" id="embudo"></div>
+    <p class="ayuda">Haz clic en una etapa para ver solo sus proyectos. Clic otra vez para ver todos.</p>
+
+    <!-- Aquí se dibujan las listas de proyectos -->
+    <div class="listas" id="listas"></div>
+  </div>
+
+  <script>
+    // 1) Leemos los datos del archivo projects.json
+    fetch("projects.json?v=" + Date.now())
+      .then(function (respuesta) { return respuesta.json(); })
+      .then(dibujar)
+      .catch(function () {
+        document.getElementById("listas").innerHTML =
+          '<div class="error">No se pudo leer projects.json. Revisa que el archivo exista y no tenga errores (comas, comillas).</div>';
+      });
+
+    var etapaSeleccionada = null;
+
+    function dibujar(datos) {
+      document.getElementById("titulo").textContent = datos.titulo || "Embudo de Proyectos";
+      document.title = datos.titulo || "Embudo de Proyectos";
+      if (datos.actualizado) {
+        document.getElementById("actualizado").textContent = "Datos actualizados al " + datos.actualizado;
+      }
+      document.getElementById("resumen").innerHTML =
+        "Total de proyectos: <strong>" + datos.proyectos.length + "</strong>";
+
+      dibujarEmbudo(datos);
+      dibujarListas(datos);
+    }
+
+    // 2) Dibujamos una barra por etapa; cada una es un poco más angosta que la anterior
+    function dibujarEmbudo(datos) {
+      var embudo = document.getElementById("embudo");
+      embudo.innerHTML = "";
+      var total = datos.etapas.length;
+
+      datos.etapas.forEach(function (etapa, i) {
+        var cantidad = datos.proyectos.filter(function (p) { return p.etapa === etapa.nombre; }).length;
+        var ancho = 100 - (i * (55 / Math.max(total - 1, 1)));   // de 100% a 45%
+
+        var barra = document.createElement("button");
+        barra.className = "etapa";
+        if (etapaSeleccionada && etapaSeleccionada !== etapa.nombre) barra.classList.add("apagada");
+        barra.style.width = ancho + "%";
+        barra.style.background = etapa.color;
+        barra.innerHTML = '<span class="nombre"></span><span class="cantidad">' + cantidad + "</span>";
+        barra.querySelector(".nombre").textContent = etapa.nombre;
+
+        barra.onclick = function () {
+          etapaSeleccionada = (etapaSeleccionada === etapa.nombre) ? null : etapa.nombre;
+          dibujarEmbudo(datos);
+          dibujarListas(datos);
+        };
+        embudo.appendChild(barra);
+      });
+    }
+
+    // 3) Debajo, una columna por etapa con la lista de sus proyectos
+    function dibujarListas(datos) {
+      var listas = document.getElementById("listas");
+      listas.innerHTML = "";
+
+      datos.etapas.forEach(function (etapa) {
+        if (etapaSeleccionada && etapaSeleccionada !== etapa.nombre) return;
+
+        var proyectos = datos.proyectos.filter(function (p) { return p.etapa === etapa.nombre; });
+        var columna = document.createElement("div");
+        columna.className = "columna";
+
+        var titulo = document.createElement("h2");
+        titulo.style.background = etapa.color;
+        titulo.textContent = etapa.nombre + " (" + proyectos.length + ")";
+        columna.appendChild(titulo);
+
+        var lista = document.createElement("ul");
+        if (proyectos.length === 0) {
+          lista.innerHTML = '<li class="vacio">Sin proyectos</li>';
+        }
+        proyectos.forEach(function (p) {
+          var item = document.createElement("li");
+          var nombre = document.createElement("div");
+          nombre.textContent = p.nombre;
+          var detalle = document.createElement("div");
+          detalle.className = "detalle";
+          detalle.textContent = [p.responsable, p.area].filter(Boolean).join(" · ");
+          item.appendChild(nombre);
+          item.appendChild(detalle);
+          lista.appendChild(item);
+        });
+        columna.appendChild(lista);
+        listas.appendChild(columna);
+      });
+    }
+  </script>
+</body>
+</html>
