@@ -14,8 +14,8 @@
   ],
   "proyectos": [
     { "nombre": "Portal de clientes",         "etapa": "Idea",         "coordinador": "Ana López",     "area": "Ventas" },
-    { "nombre": "Automatizar facturación",    "etapa": "Idea",         "coordinador": "Carlos Ruiz",   "area": "Finanzas" },
-    { "nombre": "Nuevo almacén norte",        "etapa": "Evaluación",   "coordinador": "María Pérez",   "area": "Operaciones" },
+    { "nombre": "Automatizar facturación",    "etapa": "Idea",         "coordinador": "Ana López",   "area": "Finanzas" },
+    { "nombre": "Nuevo almacén norte",        "etapa": "Evaluación",   "coordinador": "Ana López",   "area": "Operaciones" },
     { "nombre": "Capacitación en seguridad",  "etapa": "Evaluación",   "coordinador": "Luis Gómez",    "area": "Recursos Humanos" },
     { "nombre": "Renovación de equipos",      "etapa": "Aprobado",     "coordinador": "Sofía Díaz",    "area": "TI" },
     { "nombre": "App de inventario",          "etapa": "En ejecución", "coordinador": "Jorge Torres",  "area": "TI" },
