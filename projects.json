@@ -1,6 +1,10 @@
 {
   "titulo": "Embudo de Proyectos",
   "actualizado": "2026-11-15",
+  "agrupar_por": [
+    { "campo": "etapa",       "titulo": "Etapa" },
+    { "campo": "coordinador", "titulo": "Coordinador" }
+  ],
   "etapas": [
     { "nombre": "Aprobado",         "color": "#5B8DEF" },
     { "nombre": "Evaluación",   "color": "#7A6FE0" },
@@ -9,13 +13,13 @@
     { "nombre": "Cerrado",      "color": "#3BA272" }
   ],
   "proyectos": [
-    { "nombre": "Portal de clientes",         "etapa": "Idea",         "responsable": "Ana López",     "area": "Ventas" },
-    { "nombre": "Automatizar facturación",    "etapa": "Idea",         "responsable": "Carlos Ruiz",   "area": "Finanzas" },
-    { "nombre": "Nuevo almacén norte",        "etapa": "Evaluación",   "responsable": "María Pérez",   "area": "Operaciones" },
-    { "nombre": "Capacitación en seguridad",  "etapa": "Evaluación",   "responsable": "Luis Gómez",    "area": "Recursos Humanos" },
-    { "nombre": "Renovación de equipos",      "etapa": "Aprobado",     "responsable": "Sofía Díaz",    "area": "TI" },
-    { "nombre": "App de inventario",          "etapa": "En ejecución", "responsable": "Jorge Torres",  "area": "TI" },
-    { "nombre": "Campaña de marca 2026",      "etapa": "En ejecución", "responsable": "Laura Méndez",  "area": "Marketing" },
-    { "nombre": "Migración a Microsoft 365",  "etapa": "Cerrado",      "responsable": "Pedro Sánchez", "area": "TI" }
+    { "nombre": "Portal de clientes",         "etapa": "Idea",         "coordinador": "Ana López",     "area": "Ventas" },
+    { "nombre": "Automatizar facturación",    "etapa": "Idea",         "coordinador": "Carlos Ruiz",   "area": "Finanzas" },
+    { "nombre": "Nuevo almacén norte",        "etapa": "Evaluación",   "coordinador": "María Pérez",   "area": "Operaciones" },
+    { "nombre": "Capacitación en seguridad",  "etapa": "Evaluación",   "coordinador": "Luis Gómez",    "area": "Recursos Humanos" },
+    { "nombre": "Renovación de equipos",      "etapa": "Aprobado",     "coordinador": "Sofía Díaz",    "area": "TI" },
+    { "nombre": "App de inventario",          "etapa": "En ejecución", "coordinador": "Jorge Torres",  "area": "TI" },
+    { "nombre": "Campaña de marca 2026",      "etapa": "En ejecución", "coordinador": "Jorge Torres",  "area": "Marketing" },
+    { "nombre": "Migración a Microsoft 365",  "etapa": "Cerrado",      "coordinador": "Pedro Sánchez", "area": "TI" }
   ]
 }

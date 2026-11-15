@@ -36,6 +36,34 @@ header p  { margin: 0; color: var(--texto-suave); }
   font-size: 15px;
 }
 
+/* ===== Controles (agrupar y orden) ===== */
+.controles {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+}
+.control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.control .etiqueta { font-size: 14px; color: var(--texto-suave); }
+.botones {
+  display: inline-flex;
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.botones button {
+  border: none;
+  background: transparent;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--texto);
+}
+.botones button + button { border-left: 1px solid var(--borde); }
+.botones button.activo { background: #1f2937; color: #fff; }
+
 /* ===== El embudo ===== */
 .embudo {
   margin: 32px auto;
@@ -60,6 +88,11 @@ header p  { margin: 0; color: var(--texto-suave); }
   /* Recorta los lados en diagonal para dar forma de embudo */
   clip-path: polygon(0 0, 100% 0, 94% 100%, 6% 100%);
   transition: transform .15s, opacity .15s;
+}
+
+.etapa.invertida {
+  /* Embudo al revés: angosto arriba, ancho abajo */
+  clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%);
 }
 
 .etapa:hover { transform: scale(1.02); }
