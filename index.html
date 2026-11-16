@@ -4,15 +4,42 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Embudo de Proyectos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    // Aplica el tema (claro u oscuro) antes de dibujar, para que no parpadee.
+    // Se recuerda en cada computadora; si nunca se eligió, sigue al sistema.
+    (function () {
+      var tema = null;
+      try { tema = localStorage.getItem("embudo_tema"); } catch (e) {}
+      if (!tema) tema = (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) ? "oscuro" : "claro";
+      document.documentElement.setAttribute("data-tema", tema);
+    })();
+  </script>
 </head>
 <body>
+  <!-- Encabezado con el logo de Consultiva (mismo estilo que el Tablero Ejecutivo de Proyectos) -->
+  <header class="encabezado">
+    <div class="encabezado-fila">
+      <div class="marca"><img src="logos/consultiva-blanco.png" alt="Consultiva"></div>
+      <div class="textos">
+        <h1 id="titulo">Embudo de Proyectos</h1>
+        <p>Estatus de los proyectos por etapa, coordinador y área</p>
+      </div>
+      <div class="meta" id="actualizado"></div>
+    </div>
+  </header>
+
   <div class="contenedor">
-    <header>
-      <h1 id="titulo">Embudo de Proyectos</h1>
-      <p id="actualizado"></p>
-      <div class="resumen" id="resumen"></div>
-    </header>
+
+    <!-- Indicadores rápidos -->
+    <div class="indicadores">
+      <div class="indicador"><div class="valor" id="kpiProyectos">–</div><div class="etiqueta">Proyectos</div></div>
+      <div class="indicador"><div class="valor" id="kpiEtapas">–</div><div class="etiqueta">Etapas</div></div>
+      <div class="indicador"><div class="valor" id="kpiCoordinadores">–</div><div class="etiqueta">Coordinadores</div></div>
+      <div class="indicador"><div class="valor" id="kpiAreas">–</div><div class="etiqueta">Áreas</div></div>
+    </div>
 
     <!-- Botones para elegir cómo agrupar, en qué orden, y abrir Parámetros -->
     <div class="controles">
@@ -30,9 +57,11 @@
       <button class="boton-parametros" id="abrirParametros">⚙ Parámetros</button>
     </div>
 
-    <!-- Aquí se dibuja el embudo -->
-    <div class="embudo" id="embudo"></div>
-    <p class="ayuda">Haz clic en una barra para ver solo sus proyectos. Clic otra vez para ver todos.</p>
+    <!-- Aquí se dibuja el embudo 3D -->
+    <div class="escenario">
+      <div class="embudo" id="embudo"></div>
+      <p class="ayuda">Haz clic en una sección del embudo para ver solo sus proyectos. Clic otra vez para ver todos.</p>
+    </div>
 
     <!-- Aquí se dibujan las listas de proyectos -->
     <div class="listas" id="listas"></div>
@@ -43,6 +72,17 @@
     <div class="panel">
       <h2>Parámetros</h2>
       <p class="sub">Agrega, quita u ordena las etapas y los coordinadores. Los cambios se ven en el embudo al momento. Los colores se asignan solos.</p>
+
+      <div class="tema-fila">
+        <div>
+          <div class="titulo-tema">Tema oscuro</div>
+          <div class="nota-tema">Enciéndelo para ver la página con fondo oscuro. Se recuerda en esta computadora.</div>
+        </div>
+        <label class="interruptor">
+          <input type="checkbox" id="interruptorTema" aria-label="Tema oscuro">
+          <span class="pista"></span>
+        </label>
+      </div>
 
       <div class="panel-columnas">
         <div>
@@ -173,8 +213,7 @@
 
     function iniciar() {
       document.getElementById("actualizado").textContent = textoFecha;
-      document.getElementById("resumen").innerHTML =
-        "Total de proyectos: <strong>" + proyectos.length + "</strong>";
+      actualizarIndicadores();
 
       var cont = document.getElementById("botonesAgrupar");
       AGRUPAR_POR.forEach(function (op) {
@@ -239,34 +278,154 @@
         b.classList.toggle("activo", b.dataset.orden === estado.orden);
       });
       var grupos = armarGrupos();
+      actualizarIndicadores();
       dibujarEmbudo(grupos);
       dibujarListas(grupos);
     }
 
-    // ===== 3) El embudo: una barra por grupo =====
+    // ===== 3) El embudo 3D: una sección por grupo =====
+    // Cada sección es un tronco de cono dibujado en SVG: un cuerpo con sombreado
+    // (oscuro en las orillas, brillo al centro) y una "boca" elíptica arriba.
+    function aclarar(hex, cantidad) {          // cantidad: -1 (negro) … 0 … 1 (blanco)
+      var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+      function m(c) { return Math.round(cantidad < 0 ? c * (1 + cantidad) : c + (255 - c) * cantidad); }
+      return "rgb(" + m(r) + "," + m(g) + "," + m(b) + ")";
+    }
+
+    var SVG = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, padre) {
+      var e = document.createElementNS(SVG, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (padre) padre.appendChild(e);
+      return e;
+    }
+
+    var ultimoGrupos = [];
     function dibujarEmbudo(grupos) {
-      var embudo = document.getElementById("embudo");
-      embudo.innerHTML = "";
-      var total = grupos.length;
+      ultimoGrupos = grupos;
+      var cont = document.getElementById("embudo");
+      cont.innerHTML = "";
+      var n = grupos.length;
+      if (!n) return;
+
+      // Medidas en pixeles reales, para que el texto siempre se lea bien
+      var W = Math.max(cont.clientWidth, 300);
+      var chico = W < 560;
+      var alto = chico ? 62 : 80;             // alto de cada sección
+      var sep = chico ? 8 : 10;               // espacio entre secciones
+      var anchoMax = W * 0.96, anchoMin = W * (chico ? 0.42 : 0.30);
+      var cx = W / 2;
+      var totalProy = proyectos.length || 1;
+
+      // Ancho en cada "borde" (n+1 bordes): de ancho a angosto, o al revés
+      var bordes = [];
+      for (var i = 0; i <= n; i++) {
+        var t = i / n;
+        var w = anchoMax - (anchoMax - anchoMin) * t;
+        bordes.push(w);
+      }
+      if (estado.orden === "menor") bordes.reverse();
+
+      var elipse = function (w) { return Math.max(5, Math.min(w * 0.045, chico ? 9 : 16)); };   // qué tan "redonda" se ve la boca
+      var arriba = elipse(bordes[0]) + 4;
+      var H = arriba + n * alto + (n - 1) * sep + elipse(bordes[n]) + 30;
+
+      var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Embudo de proyectos" }, cont);
+      var defs = el("defs", {}, svg);
+
+      // Sombra suave debajo del embudo
+      var filtro = el("filter", { id: "difuminar", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
+      el("feGaussianBlur", { stdDeviation: 10 }, filtro);
+      var ultimoAncho = bordes[n];
+      el("ellipse", { cx: cx, cy: H - 16, rx: ultimoAncho * 0.55, ry: 10, fill: "var(--sombra-embudo)", filter: "url(#difuminar)" }, svg);
 
       grupos.forEach(function (g, i) {
-        var paso = 55 / Math.max(total - 1, 1);
-        var ancho = estado.orden === "mayor" ? 100 - i * paso : 45 + i * paso;   // entre 45% y 100%
+        var y = arriba + i * (alto + sep);
+        var wt = bordes[i];
+        var wb = bordes[i + 1];
+        var et = elipse(wt), eb = elipse(wb);
+        var color = g.color;
 
-        var barra = document.createElement("button");
-        barra.className = "etapa";
-        if (estado.orden === "menor") barra.classList.add("invertida");
-        if (estado.seleccionado && estado.seleccionado !== g.nombre) barra.classList.add("apagada");
-        barra.style.width = ancho + "%";
-        barra.style.background = g.color;
-        barra.innerHTML = '<span class="nombre"></span><span class="cantidad">' + g.proyectos.length + "</span>";
-        barra.querySelector(".nombre").textContent = g.nombre;
-        barra.onclick = function () {
+        // Degradado horizontal: orillas oscuras, brillo cerca del centro izquierdo
+        var gid = "grad" + i;
+        var lg = el("linearGradient", { id: gid, x1: "0", x2: "1", y1: "0", y2: "0" }, defs);
+        [[0, aclarar(color, -0.45)], [0.18, aclarar(color, -0.12)], [0.38, aclarar(color, 0.28)],
+         [0.55, color], [0.82, aclarar(color, -0.22)], [1, aclarar(color, -0.5)]].forEach(function (p) {
+          el("stop", { offset: p[0], "stop-color": p[1] }, lg);
+        });
+        // Interior de la boca (más oscuro abajo para dar profundidad)
+        var bid = "boca" + i;
+        var rg = el("linearGradient", { id: bid, x1: "0", x2: "0", y1: "0", y2: "1" }, defs);
+        el("stop", { offset: 0, "stop-color": aclarar(color, -0.55) }, rg);
+        el("stop", { offset: 1, "stop-color": aclarar(color, 0.15) }, rg);
+
+        var seg = el("g", { "class": "segmento" + (estado.seleccionado && estado.seleccionado !== g.nombre ? " apagada" : ""),
+                            tabindex: 0, role: "button" }, svg);
+        el("title", {}, seg).textContent = g.nombre + ": " + g.proyectos.length + " proyecto(s)";
+
+        var xl = cx - wt / 2, xr = cx + wt / 2, bl = cx - wb / 2, br = cx + wb / 2, yb = y + alto;
+        // Cuerpo: lado izquierdo, curva de abajo (frente), lado derecho, curva de arriba (frente)
+        var d = "M" + xl + "," + y +
+                " L" + bl + "," + yb +
+                " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb +
+                " L" + xr + "," + y +
+                " A" + (wt / 2) + "," + et + " 0 0 1 " + xl + "," + y + " Z";
+        el("path", { d: d, fill: "url(#" + gid + ")", "class": "cuerpo" }, seg);
+        // Brillo fino en el borde de abajo
+        el("path", { d: "M" + bl + "," + yb + " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb,
+                     fill: "none", stroke: aclarar(color, 0.35), "stroke-width": 1.2, opacity: 0.6 }, seg);
+        // Boca (elipse de arriba)
+        el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "url(#" + bid + ")" }, seg);
+        el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "none", stroke: aclarar(color, 0.45), "stroke-width": 1.5 }, seg);
+
+        // Textos: nombre y número (con porcentaje)
+        var ty = y + et + (alto - et) / 2 - (chico ? 4 : 6);
+        var tamNombre = chico ? 14 : 17, tamNum = chico ? 20 : 26;
+        var pct = Math.round(g.proyectos.length * 100 / totalProy);
+        var t1 = el("text", { x: cx, y: ty - (chico ? 4 : 6), "text-anchor": "middle", fill: "#fff",
+                              "font-size": tamNombre, "font-weight": 600,
+                              style: "paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:3px" }, seg);
+        t1.textContent = recortar(g.nombre, wb, tamNombre);
+        var t2 = el("text", { x: cx, y: ty + tamNum - (chico ? 4 : 6), "text-anchor": "middle", fill: "#fff",
+                              style: "paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:3px" }, seg);
+        var num = el("tspan", { "font-size": tamNum, "font-weight": 700 }, t2);
+        num.textContent = g.proyectos.length;
+        var porc = el("tspan", { "font-size": chico ? 12 : 14, dx: 6, opacity: 0.9 }, t2);
+        porc.textContent = pct + "%";
+
+        function elegir() {
           estado.seleccionado = (estado.seleccionado === g.nombre) ? null : g.nombre;
           dibujarTodo();
-        };
-        embudo.appendChild(barra);
+        }
+        seg.addEventListener("click", elegir);
+        seg.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(); } });
       });
+    }
+
+    // Si el nombre no cabe en la sección, lo corta con "…"
+    function recortar(texto, ancho, tam) {
+      var max = Math.floor((ancho * 0.85) / (tam * 0.56));
+      return texto.length > max ? texto.slice(0, Math.max(1, max - 1)) + "…" : texto;
+    }
+
+    // Redibuja el embudo si cambia el tamaño de la ventana
+    var esperaRedibujo;
+    window.addEventListener("resize", function () {
+      clearTimeout(esperaRedibujo);
+      esperaRedibujo = setTimeout(function () { if (ultimoGrupos.length) dibujarEmbudo(ultimoGrupos); }, 150);
+    });
+
+    // Indicadores de arriba
+    function actualizarIndicadores() {
+      function distintos(campo) {
+        var v = {};
+        proyectos.forEach(function (p) { if (p[campo]) v[p[campo]] = 1; });
+        return Object.keys(v).length;
+      }
+      document.getElementById("kpiProyectos").textContent = proyectos.length;
+      document.getElementById("kpiEtapas").textContent = parametros.etapas.length;
+      document.getElementById("kpiCoordinadores").textContent = parametros.coordinadores.length;
+      document.getElementById("kpiAreas").textContent = distintos("area");
     }
 
     // ===== 4) Listas de proyectos por grupo =====
@@ -281,7 +440,13 @@
         columna.className = "columna";
         var titulo = document.createElement("h2");
         titulo.style.background = g.color;
-        titulo.textContent = g.nombre + " (" + g.proyectos.length + ")";
+        var tNombre = document.createElement("span");
+        tNombre.textContent = g.nombre;
+        var tNum = document.createElement("span");
+        tNum.className = "num";
+        tNum.textContent = g.proyectos.length;
+        titulo.appendChild(tNombre);
+        titulo.appendChild(tNum);
         columna.appendChild(titulo);
 
         var ul = document.createElement("ul");
@@ -317,6 +482,15 @@
 
     function prepararPanel() {
       var fondo = document.getElementById("fondoPanel");
+
+      // Interruptor de tema claro / oscuro
+      var interruptor = document.getElementById("interruptorTema");
+      interruptor.checked = document.documentElement.getAttribute("data-tema") === "oscuro";
+      interruptor.onchange = function () {
+        var tema = interruptor.checked ? "oscuro" : "claro";
+        document.documentElement.setAttribute("data-tema", tema);
+        try { localStorage.setItem("embudo_tema", tema); } catch (e) {}
+      };
       document.getElementById("abrirParametros").onclick = function () {
         mensaje("");
         mostrarZonaToken();
