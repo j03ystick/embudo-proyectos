@@ -65,12 +65,6 @@
         </div>
       </div>
 
-      <div style="margin-top:20px">
-        <h3>Enlace de la hoja de proyectos (Google Sheets)</h3>
-        <p class="nota-token" style="margin-bottom:6px">Pega aquí el enlace CSV de la hoja publicada. Si lo dejas vacío, se usa el archivo proyectos.xlsx.</p>
-        <div class="agregar"><input id="fuente" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"></div>
-      </div>
-
       <div class="guardar-zona">
         <p class="nota-token">Para que los cambios los vean <strong>todos</strong>, hay que guardarlos. Solo quien tenga la <strong>clave de GitHub</strong> puede guardar (se pide una sola vez y se queda en esta computadora).</p>
         <div class="token-fila" id="filaToken">
@@ -93,7 +87,8 @@
   <script src="lib/xlsx.full.min.js"></script>
   <script>
     // ===== Configuración =====
-    var ARCHIVO_EXCEL = "proyectos.xlsx";
+    var ARCHIVO_PROYECTOS_JSON = "proyectos.json";   // llega desde SharePoint
+    var ARCHIVO_EXCEL = "proyectos.xlsx";            // respaldo
     var PESTANA_PROYECTOS = "Proyectos";
     var ARCHIVO_PARAMETROS = "parametros.json";
     var REPO = "j03ystick/embudo-proyectos";   // dónde se guardan los parámetros
@@ -122,8 +117,8 @@
     }
 
     // ===== 1) Leer los parámetros y luego los proyectos =====
-    // Los proyectos vienen de la hoja de Google Sheets (si hay enlace en Parámetros)
-    // o, si no, del archivo proyectos.xlsx del repositorio.
+    // Los proyectos vienen de proyectos.json (enviado desde el Excel de SharePoint)
+    // o, si todavía no existe, del archivo proyectos.xlsx del repositorio.
     var textoFecha = "";
     fetch(ARCHIVO_PARAMETROS + "?v=" + Date.now())
       .then(function (r) {
@@ -134,9 +129,8 @@
         parametros = json;
         parametros.etapas = parametros.etapas || [];
         parametros.coordinadores = parametros.coordinadores || [];
-        parametros.fuente_proyectos = parametros.fuente_proyectos || "";
         parametrosGuardados = copiar(parametros);
-        return leerProyectos(parametros.fuente_proyectos);
+        return leerProyectos();
       })
       .then(function (lista) { proyectos = lista; iniciar(); })
       .catch(function (e) {
@@ -144,42 +138,46 @@
           '<div class="error">No se pudieron leer los datos: ' + e.message + '</div>';
       });
 
-    function leerProyectos(enlace) {
-      if (enlace) {
-        // Google Sheets publicado como CSV
-        var sep = enlace.indexOf("?") === -1 ? "?" : "&";
-        return fetch(enlace + sep + "v=" + Date.now()).then(function (r) {
-          if (!r.ok) throw new Error("No se pudo leer la hoja de Google Sheets. Revisa que esté publicada en la web.");
-          return r.text();
-        }).then(function (texto) {
-          var ahora = new Date();
-          textoFecha = "Datos leídos de Google Sheets el " +
-            ahora.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }) + " a las " +
-            ahora.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
-          return leerExcel(XLSX.read(texto, { type: "string" }));
+    function fechaBonita(f) {
+      return f.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }) + " a las " +
+        f.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function leerProyectos() {
+      // 1º: proyectos.json, que llega solo desde el Excel de SharePoint (vía Power Automate)
+      return fetch(ARCHIVO_PROYECTOS_JSON + "?v=" + Date.now()).then(function (r) {
+        if (!r.ok) return leerProyectosExcel();          // todavía no llega nada de SharePoint
+        return r.json().then(function (json) {
+          if (json.actualizado) textoFecha = "Datos de SharePoint actualizados el " + fechaBonita(new Date(json.actualizado));
+          return limpiarFilas(json.filas || []);
         });
-      }
+      });
+    }
+
+    // 2º (respaldo): el archivo proyectos.xlsx del repositorio
+    function leerProyectosExcel() {
       return fetch(ARCHIVO_EXCEL + "?v=" + Date.now()).then(function (r) {
         if (!r.ok) throw new Error("No se encontró " + ARCHIVO_EXCEL);
         var f = r.headers.get("Last-Modified");
-        if (f) {
-          f = new Date(f);
-          textoFecha = "Datos actualizados el " +
-            f.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }) + " a las " +
-            f.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
-        }
+        if (f) textoFecha = "Datos actualizados el " + fechaBonita(new Date(f));
         return r.arrayBuffer();
       }).then(function (bytes) { return leerExcel(XLSX.read(bytes, { type: "array" })); });
     }
 
     function leerExcel(libro) {
       var hoja = libro.Sheets[PESTANA_PROYECTOS] || libro.Sheets[libro.SheetNames[0]];
-      return XLSX.utils.sheet_to_json(hoja, { defval: "" }).map(function (fila) {
+      return limpiarFilas(XLSX.utils.sheet_to_json(hoja, { defval: "" }));
+    }
+
+    // Convierte cada fila (encabezado: valor) en un proyecto con nombres de campo sencillos
+    function limpiarFilas(filas) {
+      return filas.map(function (fila) {
         var p = {};
         Object.keys(fila).forEach(function (col) {
+          if (col.charAt(0) === "@" || col === "ItemInternalId") return;   // columnas internas de Excel Online
           var campo = normalizar(col);
           if (campo === "proyecto") campo = "nombre";
-          p[campo] = fila[col].toString().trim();
+          p[campo] = (fila[col] === null || fila[col] === undefined ? "" : fila[col]).toString().trim();
         });
         return p;
       }).filter(function (p) { return p.nombre; });   // ignora filas vacías
@@ -329,11 +327,8 @@
 
     function prepararPanel() {
       var fondo = document.getElementById("fondoPanel");
-      var campoFuente = document.getElementById("fuente");
-      campoFuente.oninput = function () { parametros.fuente_proyectos = campoFuente.value.trim(); };
       document.getElementById("abrirParametros").onclick = function () {
         mensaje("");
-        campoFuente.value = parametros.fuente_proyectos || "";
         mostrarZonaToken();
         dibujarPanel();
         fondo.classList.add("abierto");
@@ -351,7 +346,6 @@
 
       document.getElementById("descartar").onclick = function () {
         parametros = copiar(parametrosGuardados);
-        campoFuente.value = parametros.fuente_proyectos || "";
         dibujarPanel(); dibujarTodo();
         mensaje("Cambios descartados.");
       };
@@ -477,10 +471,8 @@
           escribirToken(token);
           document.getElementById("token").value = "";
           mostrarZonaToken();
-          var cambioFuente = parametros.fuente_proyectos !== parametrosGuardados.fuente_proyectos;
           parametrosGuardados = copiar(parametros);
-          mensaje("¡Guardado! Los demás lo verán en 1 o 2 minutos." +
-            (cambioFuente ? " El nuevo enlace de la hoja se usará al recargar la página." : ""), "ok");
+          mensaje("¡Guardado! Los demás lo verán en 1 o 2 minutos.", "ok");
         })
         .catch(function (e) { mensaje(e.message, "mal"); });
     }

@@ -1,0 +1,58 @@
+# Recibe los proyectos que manda Power Automate (desde el Excel de SharePoint)
+# y los guarda en proyectos.json para que el embudo los muestre.
+name: Actualizar proyectos desde SharePoint
+
+on:
+  repository_dispatch:
+    types: [actualizar-proyectos]
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: actualizar-proyectos
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guardar los datos recibidos en proyectos.json
+        env:
+          FILAS: ${{ toJson(github.event.client_payload.filas) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, datetime
+          filas = json.loads(os.environ.get("FILAS") or "null")
+          if not isinstance(filas, list):
+              raise SystemExit("No llegaron filas: revisa el campo 'filas' en Power Automate.")
+          limpias = []
+          for f in filas:
+              # Quita columnas internas que agrega Excel Online (@odata.etag, ItemInternalId)
+              f = {k: v for k, v in f.items() if not k.startswith("@") and k != "ItemInternalId"}
+              if any(str(v).strip() for v in f.values()):
+                  limpias.append(f)
+          datos = {
+              "actualizado": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+              "filas": limpias,
+          }
+          with open("proyectos.json", "w", encoding="utf-8") as fh:
+              json.dump(datos, fh, ensure_ascii=False, indent=2)
+              fh.write("\n")
+          print(f"{len(limpias)} proyectos recibidos")
+          PY
+
+      - name: Guardar el cambio y publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add proyectos.json
+          git commit -m "Actualizar proyectos desde SharePoint"
+          git push
+          # Pide a GitHub Pages que vuelva a publicar la página con los datos nuevos
+          gh api -X POST "repos/${{ github.repository }}/pages/builds" || true
