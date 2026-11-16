@@ -87,8 +87,7 @@
   <script src="lib/xlsx.full.min.js"></script>
   <script>
     // ===== Configuración =====
-    var ARCHIVO_PROYECTOS_JSON = "proyectos.json";   // llega desde SharePoint
-    var ARCHIVO_EXCEL = "proyectos.xlsx";            // respaldo
+    var ARCHIVO_EXCEL = "proyectos.xlsx";
     var PESTANA_PROYECTOS = "Proyectos";
     var ARCHIVO_PARAMETROS = "parametros.json";
     var REPO = "j03ystick/embudo-proyectos";   // dónde se guardan los parámetros
@@ -117,8 +116,7 @@
     }
 
     // ===== 1) Leer los parámetros y luego los proyectos =====
-    // Los proyectos vienen de proyectos.json (enviado desde el Excel de SharePoint)
-    // o, si todavía no existe, del archivo proyectos.xlsx del repositorio.
+    // Los proyectos vienen del archivo proyectos.xlsx del repositorio.
     var textoFecha = "";
     fetch(ARCHIVO_PARAMETROS + "?v=" + Date.now())
       .then(function (r) {
@@ -143,19 +141,8 @@
         f.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
     }
 
+    // Los proyectos se leen del archivo proyectos.xlsx que se sube al repositorio
     function leerProyectos() {
-      // 1º: proyectos.json, que llega solo desde el Excel de SharePoint (vía Power Automate)
-      return fetch(ARCHIVO_PROYECTOS_JSON + "?v=" + Date.now()).then(function (r) {
-        if (!r.ok) return leerProyectosExcel();          // todavía no llega nada de SharePoint
-        return r.json().then(function (json) {
-          if (json.actualizado) textoFecha = "Datos de SharePoint actualizados el " + fechaBonita(new Date(json.actualizado));
-          return limpiarFilas(json.filas || []);
-        });
-      });
-    }
-
-    // 2º (respaldo): el archivo proyectos.xlsx del repositorio
-    function leerProyectosExcel() {
       return fetch(ARCHIVO_EXCEL + "?v=" + Date.now()).then(function (r) {
         if (!r.ok) throw new Error("No se encontró " + ARCHIVO_EXCEL);
         var f = r.headers.get("Last-Modified");
