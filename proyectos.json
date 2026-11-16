@@ -1,0 +1,53 @@
+{
+  "actualizado": "2026-11-16T00:21:13+00:00",
+  "filas": [
+    {
+      "Coordinador": "Ana López",
+      "Etapa": "Idea",
+      "Proyecto": "Portal de clientes",
+      "Área": "Ventas"
+    },
+    {
+      "Coordinador": "Ana López",
+      "Etapa": "Idea",
+      "Proyecto": "Automatizar facturación",
+      "Área": "Finanzas"
+    },
+    {
+      "Coordinador": "Ana López",
+      "Etapa": "Evaluación",
+      "Proyecto": "Nuevo almacén norte",
+      "Área": "Operaciones"
+    },
+    {
+      "Coordinador": "Luis Gómez",
+      "Etapa": "Evaluación",
+      "Proyecto": "Capacitación en seguridad",
+      "Área": "Recursos Humanos"
+    },
+    {
+      "Coordinador": "Sofía Díaz",
+      "Etapa": "Aprobado",
+      "Proyecto": "Renovación de equipos",
+      "Área": "TI"
+    },
+    {
+      "Coordinador": "Jorge Torres",
+      "Etapa": "En ejecución",
+      "Proyecto": "App de inventario",
+      "Área": "TI"
+    },
+    {
+      "Coordinador": "Jorge Torres",
+      "Etapa": "En ejecución",
+      "Proyecto": "Campaña de marca 2026",
+      "Área": "Marketing"
+    },
+    {
+      "Coordinador": "Pedro Sánchez",
+      "Etapa": "Cerrado",
+      "Proyecto": "Migración a Microsoft 365",
+      "Área": "TI"
+    }
+  ]
+}
