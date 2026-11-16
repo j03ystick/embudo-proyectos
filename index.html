@@ -95,7 +95,8 @@
     // Botones de "Agrupar por". lista = qué lista de Parámetros usa. ordenFijo = respeta el orden de la lista
     var AGRUPAR_POR = [
       { campo: "etapa",       titulo: "Etapa",       lista: "etapas",        ordenFijo: true },
-      { campo: "coordinador", titulo: "Coordinador", lista: "coordinadores", ordenFijo: false }
+      { campo: "coordinador", titulo: "Coordinador", lista: "coordinadores", ordenFijo: false },
+      { campo: "area",        titulo: "Área",        lista: null,            ordenFijo: false }   // sale directo del Excel
     ];
 
     // Paleta de colores: se asignan solos, en orden
@@ -194,7 +195,7 @@
     function armarGrupos() {
       var config = AGRUPAR_POR.filter(function (o) { return o.campo === estado.agruparPor; })[0];
       var campo = config.campo;
-      var lista = parametros[config.lista] || [];
+      var lista = (config.lista && parametros[config.lista]) || [];
       var grupos = [], porNombre = {};
 
       function agregarGrupo(nombre, color) {
@@ -211,8 +212,10 @@
         var valor = p[campo] || "";
         var nombre = valor || "Sin " + campo;
         // Un valor del Excel que no existe en Parámetros se marca en gris para que se note
-        if (valor && !porNombre[nombre]) nombre = valor + " (no está en Parámetros)";
-        agregarGrupo(nombre, COLOR_SIN_DATO);
+        if (config.lista && valor && !porNombre[nombre]) nombre = valor + " (no está en Parámetros)";
+        // Si el campo no tiene lista en Parámetros (como Área), cada valor del Excel es un grupo con color propio
+        var color = (!config.lista && valor) ? PALETA[grupos.length % PALETA.length] : COLOR_SIN_DATO;
+        agregarGrupo(nombre, color);
         porNombre[nombre].proyectos.push(p);
       });
 
