@@ -428,10 +428,9 @@
       });
     }
 
-    // ===== Vista enfocada: el anillo visto desde arriba, como una dona (gráfico de pie) =====
-    // Desde arriba, un anillo del embudo se ve como una dona: la orilla de arriba es el círculo
-    // de afuera y el hueco es la salida de abajo. Sus rebanadas reparten los proyectos
-    // por otro campo (por ejemplo, por Coordinador).
+    // ===== Vista enfocada: el anillo visto desde arriba, como un gráfico de pie en 3D =====
+    // Al enfocarlo, el anillo gira hasta verse desde arriba y su superficie se vuelve un pie con grosor.
+    // Sus rebanadas reparten los proyectos por otro campo (por ejemplo, por Coordinador).
     function camposReparto() {
       return AGRUPAR_POR.filter(function (o) { return o.campo !== estado.agruparPor; });
     }
@@ -452,78 +451,118 @@
       });
     }
 
-    var medidasDisco = null;   // para la animación: centro y radio de la dona
+    var medidasDisco = null;   // para la animación: centro, radios del pie y qué tan aplastado empieza
+    var INCLINACION = 0.55;    // 1 = visto justo desde arriba; menos = más inclinado (se ve el grosor)
     function dibujarFoco(cont, g, idx, n) {
       var W = Math.max(cont.clientWidth, 300);
       var chico = W < 560;
-      var R = chico ? Math.min(W * 0.38, 135) : Math.min(W * 0.2, 165);   // radio de afuera
-      var r = R * 0.56;                                                   // radio del hueco
-      var cx = W / 2, cy = R + 10;
-      var H = 2 * R + 34;
-      medidasDisco = { cx: cx, cy: cy, R: R, chico: chico };
+      var R = chico ? Math.min(W * 0.44, 165) : Math.min(W * 0.25, 230);   // radio del pie
+      var ry = R * INCLINACION;                                           // radio vertical (pie inclinado)
+      var grosor = R * (chico ? 0.15 : 0.13);                             // grosor 3D
+      var cabecera = chico ? 62 : 74;                                     // espacio para el nombre arriba
+      var cx = W / 2, cy = cabecera + ry + 8;
+      var H = cy + ry + grosor + 30;
+      var boca = chico ? 9 : 16;
+      medidasDisco = { cx: cx, cy: cy, R: R, ry: ry, plano: Math.min(boca / ry, 0.5) };
 
       var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": g.nombre }, cont);
       var defs = el("defs", {}, svg);
       var filtro = el("filter", { id: "difuminar", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
-      el("feGaussianBlur", { stdDeviation: 9 }, filtro);
+      el("feGaussianBlur", { stdDeviation: 10 }, filtro);
+
+      // Arriba del pie: nombre, cantidad de proyectos y porcentaje
+      var total = g.proyectos.length;
+      var titulo = el("g", { "class": "cabecera-pie" }, svg);
+      var tn = chico ? 21 : 26, ts = chico ? 14 : 16;
+      var t1 = el("text", { x: cx, y: tn + 2, "text-anchor": "middle", fill: "var(--texto)", "font-size": tn, "font-weight": 700 }, titulo);
+      t1.textContent = recortar(g.nombre, W * 0.9, tn);
+      var t2 = el("text", { x: cx, y: tn + ts + 14, "text-anchor": "middle", fill: "var(--texto-suave)", "font-size": ts }, titulo);
+      var num = el("tspan", { fill: g.color, "font-weight": 700 }, t2);
+      num.textContent = total + (total === 1 ? " proyecto" : " proyectos");
+      el("tspan", {}, t2).textContent = "  ·  " + porcentaje(g) + "% del total";
 
       var disco = el("g", { "class": "segmento anillo-foco disco", tabindex: 0, role: "button" }, svg);
       el("title", {}, disco).textContent = "Clic para volver a todo el embudo";
       // Sombra suave debajo
-      el("ellipse", { cx: cx, cy: cy + R * 0.1, rx: R * 0.98, ry: R * 0.98, fill: "var(--sombra-embudo)", filter: "url(#difuminar)", opacity: 0.55 }, disco);
+      el("ellipse", { cx: cx, cy: cy + grosor + 8, rx: R * 0.95, ry: ry * 0.75, fill: "var(--sombra-embudo)", filter: "url(#difuminar)", opacity: 0.6 }, disco);
 
-      // Rebanadas: un círculo con trazo grueso por cada valor (pathLength 100 = porcentaje)
+      // Rebanadas: ángulos en radianes, empezando arriba (-90°) y en el sentido del reloj
       var campo = campoPie();
       var partes = campo ? rebanadas(g, campo.campo) : [];
-      var total = g.proyectos.length;
-      var rm = (R + r) / 2, grueso = R - r;
-      if (!total) {
-        el("circle", { cx: cx, cy: cy, r: rm, fill: "none", stroke: aclarar(g.color, 0.55), "stroke-width": grueso }, disco);
-      }
-      var acumulado = 0, hueco = partes.length > 1 ? 0.6 : 0;
-      partes.forEach(function (p) {
-        var largo = p.num * 100 / total;
-        var c = el("circle", { cx: cx, cy: cy, r: rm, fill: "none", stroke: p.color, "stroke-width": grueso,
-                               pathLength: 100, "stroke-dasharray": Math.max(largo - hueco, 0.1) + " " + (100 - largo + hueco),
-                               "stroke-dashoffset": -acumulado, transform: "rotate(-90 " + cx + " " + cy + ")",
-                               "class": "rebanada" }, disco);
-        el("title", {}, c).textContent = p.nombre + ": " + p.num + " proyecto(s)";
-        acumulado += largo;
+      if (!total) partes = [{ nombre: "Sin proyectos", num: 1, color: aclarar(g.color, 0.55), vacio: true }];
+      var suma = partes.reduce(function (s, p) { return s + p.num; }, 0);
+      var a = -Math.PI / 2;
+      partes.forEach(function (p) { p.a0 = a; a += p.num / suma * 2 * Math.PI; p.a1 = a; });
+
+      function punto(t, y0) { return (cx + R * Math.cos(t)) + "," + ((y0 === undefined ? cy : y0) + ry * Math.sin(t)); }
+
+      // 1) Pared de enfrente (el grosor): solo se ve la mitad de abajo del pie (ángulos 0 a 180°)
+      var paredes = el("g", {}, disco);
+      partes.forEach(function (p, i) {
+        [[p.a0, p.a1], [p.a0 + 2 * Math.PI, p.a1 + 2 * Math.PI], [p.a0 - 2 * Math.PI, p.a1 - 2 * Math.PI]].forEach(function (r) {
+          var t0 = Math.max(r[0], 0), t1 = Math.min(r[1], Math.PI);
+          if (t1 <= t0) return;
+          var d = "M" + punto(t0) + " A" + R + "," + ry + " 0 0 1 " + punto(t1) +
+                  " L" + punto(t1, cy + grosor) + " A" + R + "," + ry + " 0 0 0 " + punto(t0, cy + grosor) + " Z";
+          el("path", { d: d, fill: aclarar(p.color.indexOf("rgb") === 0 ? rgbAHex(p.color) : p.color, -0.32) }, paredes);
+        });
       });
+      // Luz sobre la pared: orillas oscuras y brillo hacia el centro
+      var lid = "luzPared";
+      var lg = el("linearGradient", { id: lid, x1: cx - R, x2: cx + R, y1: 0, y2: 0, gradientUnits: "userSpaceOnUse" }, defs);
+      [[0, "rgba(0,0,0,.35)"], [0.35, "rgba(255,255,255,.12)"], [0.6, "rgba(255,255,255,.05)"], [1, "rgba(0,0,0,.4)"]]
+        .forEach(function (s) { el("stop", { offset: s[0], "stop-color": s[1] }, lg); });
+      el("path", { d: "M" + punto(0) + " A" + R + "," + ry + " 0 0 1 " + punto(Math.PI) +
+                      " L" + punto(Math.PI, cy + grosor) + " A" + R + "," + ry + " 0 0 0 " + punto(0, cy + grosor) + " Z",
+                   fill: "url(#" + lid + ")", "pointer-events": "none" }, disco);
 
-      // Volumen: sombra en la pared interior y brillo en el borde (como si fuera la superficie del anillo)
-      var rid = "volumen";
-      var rg = el("radialGradient", { id: rid, cx: cx, cy: cy, r: R, gradientUnits: "userSpaceOnUse" }, defs);
-      [[r / R, "rgba(0,0,0,.35)"], [r / R + 0.08, "rgba(0,0,0,.08)"], [0.86, "rgba(255,255,255,.10)"], [1, "rgba(0,0,0,.22)"]]
-        .forEach(function (s) { el("stop", { offset: s[0], "stop-color": s[1] }, rg); });
-      el("path", { d: dona(cx, cy, R, r), fill: "url(#" + rid + ")", "fill-rule": "evenodd", "pointer-events": "none" }, disco);
-      el("circle", { cx: cx, cy: cy, r: R - 0.75, fill: "none", stroke: aclarar(g.color, 0.45), "stroke-width": 1.5, "pointer-events": "none" }, disco);
+      // 2) Cara de arriba: una rebanada por valor
+      partes.forEach(function (p) {
+        var forma;
+        if (partes.length === 1) {
+          forma = el("ellipse", { cx: cx, cy: cy, rx: R, ry: ry, fill: p.color, "class": "rebanada" }, disco);
+        } else {
+          var grande = (p.a1 - p.a0) > Math.PI ? 1 : 0;
+          forma = el("path", { d: "M" + cx + "," + cy + " L" + punto(p.a0) + " A" + R + "," + ry + " 0 " + grande + " 1 " + punto(p.a1) + " Z",
+                               fill: p.color, stroke: "rgba(255,255,255,.55)", "stroke-width": 1.5, "stroke-linejoin": "round",
+                               "class": "rebanada" }, disco);
+        }
+        if (!p.vacio) el("title", {}, forma).textContent = p.nombre + ": " + p.num + " proyecto(s)";
+      });
+      // Brillo suave sobre la cara de arriba y borde fino
+      var bid = "brilloPie";
+      var rg = el("radialGradient", { id: bid, cx: 0.38, cy: 0.3, r: 0.8 }, defs);
+      el("stop", { offset: 0, "stop-color": "rgba(255,255,255,.28)" }, rg);
+      el("stop", { offset: 0.6, "stop-color": "rgba(255,255,255,0)" }, rg);
+      el("stop", { offset: 1, "stop-color": "rgba(0,0,0,.12)" }, rg);
+      el("ellipse", { cx: cx, cy: cy, rx: R, ry: ry, fill: "url(#" + bid + ")", "pointer-events": "none" }, disco);
+      el("ellipse", { cx: cx, cy: cy, rx: R - 0.5, ry: ry - 0.5, fill: "none", stroke: "rgba(255,255,255,.45)", "stroke-width": 1.2, "pointer-events": "none" }, disco);
 
-      // Hueco del centro con el nombre, el número y el porcentaje
-      el("circle", { cx: cx, cy: cy, r: r, fill: "var(--tarjeta)", stroke: aclarar(g.color, -0.2), "stroke-width": 1.5 }, disco);
-      var tn = chico ? 15 : 18, tnum = chico ? 34 : 44, tp = chico ? 13 : 15;
-      var t1 = el("text", { x: cx, y: cy - tnum * 0.42, "text-anchor": "middle", fill: "var(--texto)", "font-size": tn, "font-weight": 600 }, disco);
-      t1.textContent = recortar(g.nombre, r * 1.9, tn);
-      var t2 = el("text", { x: cx, y: cy + tnum * 0.42, "text-anchor": "middle", fill: g.color, "font-size": tnum, "font-weight": 700 }, disco);
-      t2.textContent = total;
-      var t3 = el("text", { x: cx, y: cy + tnum * 0.42 + tp + 6, "text-anchor": "middle", fill: "var(--texto-suave)", "font-size": tp }, disco);
-      t3.textContent = porcentaje(g) + "% del total";
+      // 3) Número de proyectos sobre cada rebanada (si cabe)
+      if (total) partes.forEach(function (p) {
+        if (p.num / suma < 0.07) return;
+        var t = partes.length === 1 ? Math.PI / 2 : (p.a0 + p.a1) / 2;
+        var dist = partes.length === 1 ? 0 : 0.6;
+        var tx = cx + R * dist * Math.cos(t), ty = cy + ry * dist * Math.sin(t);
+        var tam = chico ? 17 : 21;
+        var etq = el("text", { x: tx, y: ty + tam * 0.35, "text-anchor": "middle", fill: "#fff", "font-size": tam, "font-weight": 700,
+                               "pointer-events": "none", style: "paint-order:stroke;stroke:rgba(0,0,0,.3);stroke-width:3px" }, disco);
+        etq.textContent = p.num;
+      });
 
       disco.addEventListener("click", salirDeFoco);
       disco.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); salirDeFoco(); } });
 
-      dibujarResumen(g, idx, n, partes, campo);
+      dibujarResumen(g, idx, n, total ? partes : [], campo);
     }
 
-    // Forma de dona (círculo grande menos círculo chico)
-    function dona(cx, cy, R, r) {
-      function circulo(rr) {
-        return "M" + (cx - rr) + "," + cy + " a" + rr + "," + rr + " 0 1 0 " + (2 * rr) + ",0 a" + rr + "," + rr + " 0 1 0 " + (-2 * rr) + ",0 Z ";
-      }
-      return circulo(R) + circulo(r);
+    // "rgb(r,g,b)" -> "#rrggbb" (para poder oscurecer los tonos de las rebanadas)
+    function rgbAHex(rgb) {
+      var v = rgb.match(/\d+/g).map(function (x) { return ("0" + parseInt(x, 10).toString(16)).slice(-2); });
+      return "#" + v.join("");
     }
 
-    // Datos generales debajo de la dona: indicadores, a qué campo corresponden las rebanadas y su leyenda
+    // Datos generales debajo del pie: indicadores, a qué campo corresponden las rebanadas y su leyenda
     function dibujarResumen(g, idx, n, partes, campo) {
       var caja = document.getElementById("resumenFoco");
       caja.innerHTML = "";
@@ -606,12 +645,11 @@
       var disco = document.querySelector("#embudo .disco");
       if (!svg || !disco || !medidasDisco || !disco.animate) return;
       var m = medidasDisco, R = m.R;
-      var plano = (m.chico ? 9 : 16) / R;          // qué tan aplastada se ve la boca de lado
-      if (plano > 0.3) plano = 0.3;
+      var plano = m.plano;                          // qué tan aplastado se ve el pie de lado
 
-      // 1) Un anillo de lado temporal, del ancho de la dona, que vuela desde donde estaba
+      // 1) Un anillo de lado temporal, del ancho del pie, que vuela desde donde estaba
       var defs = svg.querySelector("defs");
-      var alto = R * 0.55, et = R * plano, wt = 2 * R, wb = wt * 0.8;
+      var alto = R * 0.5, et = m.ry * plano, wt = 2 * R, wb = wt * 0.8;
       var fantasma = dibujarAnillo(svg, defs, grupo, 99, m.cx, m.cy, wt, wb, alto, et, et * 0.8,
                                    { nombre: 0.01, num: 0.01, porc: 0.01 });
       fantasma.classList.add("fantasma");
@@ -634,7 +672,7 @@
         { transform: "none", opacity: 1 },
         { transform: "scale(1, 0)", opacity: 0 }
       ], { duration: t2 * 0.7, delay: t1, easing: "ease-in", fill: "forwards" }).onfinish = function () { fantasma.remove(); };
-      // ...y la boca se abre de elipse a círculo: la dona aparece vista desde arriba
+      // ...y la boca se abre: el pie aparece visto desde arriba, con su grosor
       disco.style.transformBox = "view-box";
       disco.style.transformOrigin = m.cx + "px " + m.cy + "px";
       disco.animate([
@@ -643,6 +681,10 @@
         { transform: "scale(1.03,1.03)", opacity: 1, offset: 0.8 },
         { transform: "none", opacity: 1 }
       ], { duration: t2, delay: t1 - 40, easing: "cubic-bezier(.25,.8,.25,1)", fill: "backwards" });
+      // El nombre y los datos de arriba aparecen al final
+      var cab = svg.querySelector(".cabecera-pie");
+      if (cab) cab.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }],
+                           { duration: 450, delay: t1 + 200, easing: "ease-out", fill: "backwards" });
       return t1 + t2;
     }
 
@@ -672,18 +714,13 @@
       }, 280);
     }
 
-    // Botón "Ver todo el embudo", tecla Esc o clic en la dona
+    // Botón "Ver todo el embudo", tecla Esc o clic en el pie
     function salirDeFoco() {
       if (!estado.seleccionado || animando) return;
       var nombre = estado.seleccionado;
       var disco = document.querySelector("#embudo .disco");
       function volver() {
         var desde = disco && disco.getBoundingClientRect();
-        if (desde && medidasDisco) {   // la dona aplastada (vista de lado) mide lo mismo de ancho y poco de alto
-          var plano = Math.min((medidasDisco.chico ? 9 : 16) / medidasDisco.R, 0.3);
-          desde = { left: desde.left, width: desde.width, height: desde.height * plano * 3,
-                    top: desde.top + desde.height / 2 - desde.height * plano * 1.5 };
-        }
         estado.seleccionado = null;
         dibujarTodo();
         animando = false;
@@ -694,9 +731,9 @@
         });
       }
       if (sinMovimiento || !disco || !disco.animate || !medidasDisco) return volver();
-      // La dona se "acuesta" otra vez (vista de lado) antes de regresar al embudo
+      // El pie se "acuesta" otra vez (vista de lado) antes de regresar al embudo
       animando = true;
-      var plano = Math.min((medidasDisco.chico ? 9 : 16) / medidasDisco.R, 0.3);
+      var plano = medidasDisco.plano;
       disco.style.transformBox = "view-box";
       disco.style.transformOrigin = medidasDisco.cx + "px " + medidasDisco.cy + "px";
       document.getElementById("resumenFoco").classList.add("desvanecer");
