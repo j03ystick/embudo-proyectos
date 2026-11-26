@@ -60,7 +60,7 @@
     <!-- Aquí se dibuja el embudo 3D -->
     <div class="escenario">
       <div class="embudo" id="embudo"></div>
-      <p class="ayuda" id="ayuda">Haz clic en una fase del embudo para verla en grande con su resumen y solo sus proyectos.</p>
+      <p class="ayuda">Haz clic en una sección del embudo para ver solo sus proyectos. Clic otra vez para ver todos.</p>
     </div>
 
     <!-- Aquí se dibujan las listas de proyectos -->
@@ -131,8 +131,6 @@
     var PESTANA_PROYECTOS = "Proyectos";
     var ARCHIVO_PARAMETROS = "parametros.json";
     var REPO = "j03ystick/embudo-proyectos";   // dónde se guardan los parámetros
-    // Dashboard de seguimiento (detalle de cada proyecto). Está en el mismo sitio de GitHub Pages.
-    var DASHBOARD = "../Dashboard-proyectos/";
 
     // Botones de "Agrupar por". lista = qué lista de Parámetros usa. ordenFijo = respeta el orden de la lista
     var AGRUPAR_POR = [
@@ -173,7 +171,7 @@
         parametrosGuardados = copiar(parametros);
         return leerProyectos();
       })
-      .then(function (lista) { proyectos = lista; iniciar(); cargarDashboard(); })
+      .then(function (lista) { proyectos = lista; iniciar(); })
       .catch(function (e) {
         document.getElementById("listas").innerHTML =
           '<div class="error">No se pudieron leer los datos: ' + e.message + '</div>';
@@ -213,34 +211,6 @@
       }).filter(function (p) { return p.nombre; });   // ignora filas vacías
     }
 
-    // ===== Enlace con el dashboard =====
-    // Lee la lista de proyectos del dashboard para saber cuáles tienen detalle.
-    // Un proyecto del Excel se enlaza por su columna ID (si existe) o por su nombre.
-    var enDashboard = { porId: {}, porNombre: {} };
-    function claveNombre(t) { return normalizar(t || "").replace(/_/g, " "); }
-    function cargarDashboard() {
-      fetch(DASHBOARD + "data/config.json", { cache: "no-store" })
-        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
-        .then(function (config) {
-          return Promise.all((config.proyectos || []).map(function (ruta) {
-            return fetch(DASHBOARD + ruta, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
-          }));
-        })
-        .then(function (lista) {
-          lista.forEach(function (p) {
-            if (!p || !p.id) return;
-            enDashboard.porId[p.id.toUpperCase()] = p.id;
-            if (p.nombre) enDashboard.porNombre[claveNombre(p.nombre)] = p.id;
-          });
-          if (ultimoGrupos.length) dibujarListas(ultimoGrupos);
-        })
-        .catch(function () { /* sin dashboard: las listas se quedan sin enlace */ });
-    }
-    function enlaceDashboard(p) {
-      var id = (p.id && enDashboard.porId[p.id.toUpperCase()]) || enDashboard.porNombre[claveNombre(p.nombre)];
-      return id ? DASHBOARD + "#/proyecto/" + encodeURIComponent(id) : null;
-    }
-
     function iniciar() {
       document.getElementById("actualizado").textContent = textoFecha;
       actualizarIndicadores();
@@ -254,7 +224,7 @@
         cont.appendChild(b);
       });
       document.querySelectorAll("#botonesOrden button").forEach(function (b) {
-        b.onclick = function () { estado.orden = b.dataset.orden; estado.seleccionado = null; dibujarTodo(); };
+        b.onclick = function () { estado.orden = b.dataset.orden; dibujarTodo(); };
       });
       prepararPanel();
       dibujarTodo();
@@ -331,64 +301,12 @@
     }
 
     var ultimoGrupos = [];
-    var zoomDesde = null;    // dónde estaba el anillo antes del zoom (para animarlo)
-
-    // Dibuja una sección (tronco de cono) del embudo, sin textos. Devuelve el grupo <g>.
-    function dibujarSeccion(svg, defs, g, idx, cx, y, wt, wb, alto, et, eb) {
-      var color = g.color;
-      // Degradado horizontal: orillas oscuras, brillo cerca del centro izquierdo
-      var gid = "grad" + idx;
-      var lg = el("linearGradient", { id: gid, x1: "0", x2: "1", y1: "0", y2: "0" }, defs);
-      [[0, aclarar(color, -0.45)], [0.18, aclarar(color, -0.12)], [0.38, aclarar(color, 0.28)],
-       [0.55, color], [0.82, aclarar(color, -0.22)], [1, aclarar(color, -0.5)]].forEach(function (p) {
-        el("stop", { offset: p[0], "stop-color": p[1] }, lg);
-      });
-      // Interior de la boca (más oscuro abajo para dar profundidad)
-      var bid = "boca" + idx;
-      var rg = el("linearGradient", { id: bid, x1: "0", x2: "0", y1: "0", y2: "1" }, defs);
-      el("stop", { offset: 0, "stop-color": aclarar(color, -0.55) }, rg);
-      el("stop", { offset: 1, "stop-color": aclarar(color, 0.15) }, rg);
-
-      var seg = el("g", { "class": "segmento", tabindex: 0, role: "button" }, svg);
-      var xl = cx - wt / 2, xr = cx + wt / 2, bl = cx - wb / 2, br = cx + wb / 2, yb = y + alto;
-      // Cuerpo: lado izquierdo, curva de abajo (frente), lado derecho, curva de arriba (frente)
-      var d = "M" + xl + "," + y +
-              " L" + bl + "," + yb +
-              " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb +
-              " L" + xr + "," + y +
-              " A" + (wt / 2) + "," + et + " 0 0 1 " + xl + "," + y + " Z";
-      el("path", { d: d, fill: "url(#" + gid + ")", "class": "cuerpo" }, seg);
-      // Brillo fino en el borde de abajo
-      el("path", { d: "M" + bl + "," + yb + " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb,
-                   fill: "none", stroke: aclarar(color, 0.35), "stroke-width": 1.2, opacity: 0.6 }, seg);
-      // Boca (elipse de arriba)
-      el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "url(#" + bid + ")" }, seg);
-      el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "none", stroke: aclarar(color, 0.45), "stroke-width": 1.5 }, seg);
-      return seg;
-    }
-
-    function texto(padre, attrs, contenido) {
-      attrs.fill = attrs.fill || "#fff";
-      attrs["text-anchor"] = "middle";
-      attrs.style = "paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:3px";
-      var t = el("text", attrs, padre);
-      if (contenido !== undefined) t.textContent = contenido;
-      return t;
-    }
-
-    function porcentaje(g) { return Math.round(g.proyectos.length * 100 / (proyectos.length || 1)); }
-
     function dibujarEmbudo(grupos) {
       ultimoGrupos = grupos;
       var cont = document.getElementById("embudo");
       cont.innerHTML = "";
       var n = grupos.length;
       if (!n) return;
-
-      // Si hay una fase elegida, se muestra solo ese anillo en grande
-      var elegido = estado.seleccionado && grupos.filter(function (g) { return g.nombre === estado.seleccionado; })[0];
-      document.querySelector(".escenario").classList.toggle("con-zoom", !!elegido);
-      if (elegido) return dibujarZoom(cont, elegido, grupos.indexOf(elegido), n);
 
       // Medidas en pixeles reales, para que el texto siempre se lea bien
       var W = Math.max(cont.clientWidth, 300);
@@ -397,40 +315,86 @@
       var sep = chico ? 8 : 10;               // espacio entre secciones
       var anchoMax = W * 0.96, anchoMin = W * (chico ? 0.42 : 0.30);
       var cx = W / 2;
+      var totalProy = proyectos.length || 1;
 
-      var bordes = medirBordes(n, anchoMax, anchoMin);
+      // Ancho en cada "borde" (n+1 bordes): de ancho a angosto, o al revés
+      var bordes = [];
+      for (var i = 0; i <= n; i++) {
+        var t = i / n;
+        var w = anchoMax - (anchoMax - anchoMin) * t;
+        bordes.push(w);
+      }
+      if (estado.orden === "menor") bordes.reverse();
+
       var elipse = function (w) { return Math.max(5, Math.min(w * 0.045, chico ? 9 : 16)); };   // qué tan "redonda" se ve la boca
       var arriba = elipse(bordes[0]) + 4;
       var H = arriba + n * alto + (n - 1) * sep + elipse(bordes[n]) + 30;
 
-      var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Embudo de proyectos", "class": "entrar" }, cont);
+      var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Embudo de proyectos" }, cont);
       var defs = el("defs", {}, svg);
 
       // Sombra suave debajo del embudo
       var filtro = el("filter", { id: "difuminar", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
       el("feGaussianBlur", { stdDeviation: 10 }, filtro);
-      el("ellipse", { cx: cx, cy: H - 16, rx: bordes[n] * 0.55, ry: 10, fill: "var(--sombra-embudo)", filter: "url(#difuminar)" }, svg);
+      var ultimoAncho = bordes[n];
+      el("ellipse", { cx: cx, cy: H - 16, rx: ultimoAncho * 0.55, ry: 10, fill: "var(--sombra-embudo)", filter: "url(#difuminar)" }, svg);
 
       grupos.forEach(function (g, i) {
         var y = arriba + i * (alto + sep);
-        var wt = bordes[i], wb = bordes[i + 1];
-        var et = elipse(wt);
-        var seg = dibujarSeccion(svg, defs, g, i, cx, y, wt, wb, alto, et, elipse(wb));
-        el("title", {}, seg).textContent = g.nombre + ": " + g.proyectos.length + " proyecto(s). Clic para ver el resumen";
+        var wt = bordes[i];
+        var wb = bordes[i + 1];
+        var et = elipse(wt), eb = elipse(wb);
+        var color = g.color;
+
+        // Degradado horizontal: orillas oscuras, brillo cerca del centro izquierdo
+        var gid = "grad" + i;
+        var lg = el("linearGradient", { id: gid, x1: "0", x2: "1", y1: "0", y2: "0" }, defs);
+        [[0, aclarar(color, -0.45)], [0.18, aclarar(color, -0.12)], [0.38, aclarar(color, 0.28)],
+         [0.55, color], [0.82, aclarar(color, -0.22)], [1, aclarar(color, -0.5)]].forEach(function (p) {
+          el("stop", { offset: p[0], "stop-color": p[1] }, lg);
+        });
+        // Interior de la boca (más oscuro abajo para dar profundidad)
+        var bid = "boca" + i;
+        var rg = el("linearGradient", { id: bid, x1: "0", x2: "0", y1: "0", y2: "1" }, defs);
+        el("stop", { offset: 0, "stop-color": aclarar(color, -0.55) }, rg);
+        el("stop", { offset: 1, "stop-color": aclarar(color, 0.15) }, rg);
+
+        var seg = el("g", { "class": "segmento" + (estado.seleccionado && estado.seleccionado !== g.nombre ? " apagada" : ""),
+                            tabindex: 0, role: "button" }, svg);
+        el("title", {}, seg).textContent = g.nombre + ": " + g.proyectos.length + " proyecto(s)";
+
+        var xl = cx - wt / 2, xr = cx + wt / 2, bl = cx - wb / 2, br = cx + wb / 2, yb = y + alto;
+        // Cuerpo: lado izquierdo, curva de abajo (frente), lado derecho, curva de arriba (frente)
+        var d = "M" + xl + "," + y +
+                " L" + bl + "," + yb +
+                " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb +
+                " L" + xr + "," + y +
+                " A" + (wt / 2) + "," + et + " 0 0 1 " + xl + "," + y + " Z";
+        el("path", { d: d, fill: "url(#" + gid + ")", "class": "cuerpo" }, seg);
+        // Brillo fino en el borde de abajo
+        el("path", { d: "M" + bl + "," + yb + " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb,
+                     fill: "none", stroke: aclarar(color, 0.35), "stroke-width": 1.2, opacity: 0.6 }, seg);
+        // Boca (elipse de arriba)
+        el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "url(#" + bid + ")" }, seg);
+        el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "none", stroke: aclarar(color, 0.45), "stroke-width": 1.5 }, seg);
 
         // Textos: nombre y número (con porcentaje)
         var ty = y + et + (alto - et) / 2 - (chico ? 4 : 6);
         var tamNombre = chico ? 14 : 17, tamNum = chico ? 20 : 26;
-        texto(seg, { x: cx, y: ty - (chico ? 4 : 6), "font-size": tamNombre, "font-weight": 600 }, recortar(g.nombre, wb, tamNombre));
-        var t2 = texto(seg, { x: cx, y: ty + tamNum - (chico ? 4 : 6) });
-        el("tspan", { "font-size": tamNum, "font-weight": 700 }, t2).textContent = g.proyectos.length;
-        el("tspan", { "font-size": chico ? 12 : 14, dx: 6, opacity: 0.9 }, t2).textContent = porcentaje(g) + "%";
+        var pct = Math.round(g.proyectos.length * 100 / totalProy);
+        var t1 = el("text", { x: cx, y: ty - (chico ? 4 : 6), "text-anchor": "middle", fill: "#fff",
+                              "font-size": tamNombre, "font-weight": 600,
+                              style: "paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:3px" }, seg);
+        t1.textContent = recortar(g.nombre, wb, tamNombre);
+        var t2 = el("text", { x: cx, y: ty + tamNum - (chico ? 4 : 6), "text-anchor": "middle", fill: "#fff",
+                              style: "paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:3px" }, seg);
+        var num = el("tspan", { "font-size": tamNum, "font-weight": 700 }, t2);
+        num.textContent = g.proyectos.length;
+        var porc = el("tspan", { "font-size": chico ? 12 : 14, dx: 6, opacity: 0.9 }, t2);
+        porc.textContent = pct + "%";
 
         function elegir() {
-          var r = seg.getBoundingClientRect();
-          zoomDesde = { x: r.left + r.width / 2 + scrollX, y: r.top + r.height / 2 + scrollY, w: r.width,
-                        forma: wb / wt };
-          estado.seleccionado = g.nombre;
+          estado.seleccionado = (estado.seleccionado === g.nombre) ? null : g.nombre;
           dibujarTodo();
         }
         seg.addEventListener("click", elegir);
@@ -438,88 +402,6 @@
       });
     }
 
-    // Ancho en cada "borde" (n+1 bordes): de ancho a angosto, o al revés
-    function medirBordes(n, anchoMax, anchoMin) {
-      var bordes = [];
-      for (var i = 0; i <= n; i++) bordes.push(anchoMax - (anchoMax - anchoMin) * (i / n));
-      if (estado.orden === "menor") bordes.reverse();
-      return bordes;
-    }
-
-    // ===== Zoom: solo el anillo de la fase elegida, arriba al centro, con su resumen =====
-    function dibujarZoom(cont, g, idx, n) {
-      var W = Math.max(cont.clientWidth, 300);
-      var chico = W < 560;
-      // Conserva la forma que tenía el anillo dentro del embudo
-      var forma = zoomDesde ? zoomDesde.forma : (function () { var b = medirBordes(n, 1, 0.3); return b[idx + 1] / b[idx]; })();
-      var wt = Math.min(W * 0.9, 620), wb = wt * forma;
-      var alto = chico ? 150 : 190;
-      var et = Math.min(wt * 0.06, chico ? 14 : 24), eb = Math.min(wb * 0.06, chico ? 14 : 24);
-      var cx = W / 2, y = et + 4;
-      var H = y + alto + eb + 34;
-
-      var caja = document.createElement("div");
-      caja.className = "zoom";
-      cont.appendChild(caja);
-
-      var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img",
-                            "aria-label": g.nombre + ": " + g.proyectos.length + " proyectos, " + porcentaje(g) + "% del total" }, caja);
-      var defs = el("defs", {}, svg);
-      var filtro = el("filter", { id: "difuminar", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
-      el("feGaussianBlur", { stdDeviation: 10 }, filtro);
-      el("ellipse", { cx: cx, cy: H - 16, rx: wb * 0.55, ry: 10, fill: "var(--sombra-embudo)", filter: "url(#difuminar)" }, svg);
-
-      var seg = dibujarSeccion(svg, defs, g, "z", cx, y, wt, wb, alto, et, eb);
-      el("title", {}, seg).textContent = "Clic para volver al embudo completo";
-
-      // Resumen dentro del anillo: nombre, cantidad de proyectos y % del total
-      var centro = y + et + (alto - et) / 2;
-      var anchoTexto = Math.min(wt, wb);
-      var tamNombre = chico ? 17 : 22, tamNum = chico ? 44 : 60;
-      texto(seg, { x: cx, y: centro - tamNum * 0.62, "font-size": tamNombre, "font-weight": 600 }, recortar(g.nombre, anchoTexto, tamNombre));
-      var t2 = texto(seg, { x: cx, y: centro + tamNum * 0.32 });
-      el("tspan", { "font-size": tamNum, "font-weight": 700 }, t2).textContent = g.proyectos.length;
-      el("tspan", { "font-size": chico ? 15 : 19, dx: 8, "font-weight": 500 }, t2).textContent =
-        g.proyectos.length === 1 ? "proyecto" : "proyectos";
-      texto(seg, { x: cx, y: centro + tamNum * 0.32 + (chico ? 26 : 34), "font-size": chico ? 15 : 19, "font-weight": 600 },
-            porcentaje(g) + "% del total · " + g.proyectos.length + " de " + proyectos.length);
-
-      function volver() { estado.seleccionado = null; zoomDesde = null; dibujarTodo(); }
-      seg.addEventListener("click", volver);
-      seg.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); volver(); } });
-
-      var boton = document.createElement("button");
-      boton.className = "volver";
-      boton.textContent = "← Ver embudo completo";
-      boton.onclick = volver;
-      caja.appendChild(boton);
-
-      // Lleva el escenario a la parte de arriba de la pantalla si quedó fuera de vista
-      var esc = document.querySelector(".escenario");
-      if (esc.getBoundingClientRect().top < 0) esc.scrollIntoView({ behavior: "smooth", block: "start" });
-
-      // Animación de zoom: el anillo crece desde donde estaba en el embudo hasta su nuevo lugar
-      if (zoomDesde && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        var r = svg.getBoundingClientRect();
-        var segR = seg.getBoundingClientRect();
-        var escala = zoomDesde.w / segR.width;
-        var dx = zoomDesde.x - (segR.left + segR.width / 2 + scrollX);
-        var dy = zoomDesde.y - (segR.top + segR.height / 2 + scrollY);
-        svg.style.transformOrigin = (segR.left - r.left + segR.width / 2) + "px " + (segR.top - r.top + segR.height / 2) + "px";
-        svg.style.transform = "translate(" + dx + "px," + dy + "px) scale(" + escala + ")";
-        svg.getBoundingClientRect();   // fija el punto de partida antes de animar
-        svg.style.transition = "transform .45s cubic-bezier(.2,.8,.2,1)";
-        svg.style.transform = "";
-      }
-      zoomDesde = null;
-    }
-
-    // Esc regresa al embudo completo
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && estado.seleccionado && !document.getElementById("fondoPanel").classList.contains("abierto")) {
-        estado.seleccionado = null; dibujarTodo();
-      }
-    });
     // Si el nombre no cabe en la sección, lo corta con "…"
     function recortar(texto, ancho, tam) {
       var max = Math.floor((ancho * 0.85) / (tam * 0.56));
@@ -571,31 +453,15 @@
         if (g.proyectos.length === 0) ul.innerHTML = '<li class="vacio">Sin proyectos</li>';
         g.proyectos.forEach(function (p) {
           var item = document.createElement("li");
-          var url = enlaceDashboard(p);
-          var caja = item;
-          if (url) {   // el proyecto tiene detalle en el dashboard: toda la fila es un enlace
-            caja = document.createElement("a");
-            caja.className = "con-detalle";
-            caja.href = url;
-            caja.title = "Ver el detalle en el dashboard de seguimiento";
-            item.appendChild(caja);
-          }
           var nombre = document.createElement("div");
-          nombre.className = "nombre";
           nombre.textContent = p.nombre;
           var detalle = document.createElement("div");
           detalle.className = "detalle";
           detalle.textContent = Object.keys(p)
-            .filter(function (c) { return c !== "nombre" && c !== "id" && c !== estado.agruparPor; })
+            .filter(function (c) { return c !== "nombre" && c !== estado.agruparPor; })
             .map(function (c) { return p[c]; }).filter(Boolean).join(" · ");
-          caja.appendChild(nombre);
-          caja.appendChild(detalle);
-          if (url) {
-            var ir = document.createElement("div");
-            ir.className = "ir-detalle";
-            ir.textContent = "Ver detalle →";
-            caja.appendChild(ir);
-          }
+          item.appendChild(nombre);
+          item.appendChild(detalle);
           ul.appendChild(item);
         });
         columna.appendChild(ul);
