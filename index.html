@@ -153,7 +153,7 @@
     var PALETA = ["#5B8DEF", "#7A6FE0", "#E0A030", "#E07040", "#3BA272", "#D45087", "#2CA6B0", "#8C6D46", "#6B7A8F", "#B85FC2"];
     var COLOR_SIN_DATO = "#9CA3AF";
 
-    var estado = { agruparPor: "etapa", orden: "mayor", seleccionado: null };
+    var estado = { agruparPor: "etapa", orden: "mayor", seleccionado: null, dividirPor: null };
     var proyectos = [];
     var parametros = { etapas: [], coordinadores: [] };   // lo que se ve (puede tener cambios sin guardar)
     var parametrosGuardados = null;                       // lo último guardado
@@ -386,6 +386,7 @@
       document.getElementById("escenario").classList.toggle("con-foco", !!elegido);
       if (elegido) return dibujarFoco(cont, elegido, grupos.indexOf(elegido), n);
       document.getElementById("resumenFoco").innerHTML = "";
+      document.getElementById("resumenFoco").classList.remove("desvanecer");
       if (!n) return;
 
       // Medidas en pixeles reales, para que el texto siempre se lea bien
@@ -427,38 +428,106 @@
       });
     }
 
-    // ===== Vista enfocada: un solo anillo arriba al centro, en grande =====
+    // ===== Vista enfocada: el anillo visto desde arriba, como una dona (gráfico de pie) =====
+    // Desde arriba, un anillo del embudo se ve como una dona: la orilla de arriba es el círculo
+    // de afuera y el hueco es la salida de abajo. Sus rebanadas reparten los proyectos
+    // por otro campo (por ejemplo, por Coordinador).
+    function camposReparto() {
+      return AGRUPAR_POR.filter(function (o) { return o.campo !== estado.agruparPor; });
+    }
+    function campoPie() {
+      var otros = camposReparto();
+      var c = otros.filter(function (o) { return o.campo === estado.dividirPor; })[0];
+      return c || otros[0];
+    }
+    // Cuenta los proyectos del grupo por un campo, de mayor a menor, con un tono del color del grupo
+    function rebanadas(g, campo) {
+      var cuenta = {};
+      g.proyectos.forEach(function (p) { var v = p[campo] || "Sin dato"; cuenta[v] = (cuenta[v] || 0) + 1; });
+      var valores = Object.keys(cuenta).sort(function (a, b) { return cuenta[b] - cuenta[a] || a.localeCompare(b, "es"); });
+      var k = valores.length;
+      return valores.map(function (v, i) {
+        var t = k === 1 ? 0 : -0.38 + 0.8 * i / (k - 1);   // del más oscuro al más claro
+        return { nombre: v, num: cuenta[v], color: aclarar(g.color, t) };
+      });
+    }
+
+    var medidasDisco = null;   // para la animación: centro y radio de la dona
     function dibujarFoco(cont, g, idx, n) {
       var W = Math.max(cont.clientWidth, 300);
       var chico = W < 560;
-      var wt = Math.min(W * (chico ? 0.92 : 0.7), 620), wb = wt * 0.8;
-      var alto = chico ? 96 : 124;
-      var et = elipse(wt, chico) + 4, eb = elipse(wb, chico) + 4;
-      var cx = W / 2, arriba = et + 6;
-      var H = arriba + alto + eb + 26;
+      var R = chico ? Math.min(W * 0.38, 135) : Math.min(W * 0.2, 165);   // radio de afuera
+      var r = R * 0.56;                                                   // radio del hueco
+      var cx = W / 2, cy = R + 10;
+      var H = 2 * R + 34;
+      medidasDisco = { cx: cx, cy: cy, R: R, chico: chico };
 
       var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": g.nombre }, cont);
       var defs = el("defs", {}, svg);
       var filtro = el("filter", { id: "difuminar", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
-      el("feGaussianBlur", { stdDeviation: 10 }, filtro);
-      el("ellipse", { cx: cx, cy: H - 12, rx: wb * 0.5, ry: 9, fill: "var(--sombra-embudo)", filter: "url(#difuminar)" }, svg);
+      el("feGaussianBlur", { stdDeviation: 9 }, filtro);
 
-      var tam = chico ? { nombre: 19, num: 34, porc: 15 } : { nombre: 24, num: 46, porc: 19 };
-      var seg = dibujarAnillo(svg, defs, g, 0, cx, arriba, wt, wb, alto, et, eb, tam);
-      seg.classList.add("anillo-foco");
-      seg.setAttribute("tabindex", 0);
-      seg.setAttribute("role", "button");
-      el("title", {}, seg).textContent = "Clic para volver a todo el embudo";
-      seg.addEventListener("click", salirDeFoco);
-      seg.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); salirDeFoco(); } });
+      var disco = el("g", { "class": "segmento anillo-foco disco", tabindex: 0, role: "button" }, svg);
+      el("title", {}, disco).textContent = "Clic para volver a todo el embudo";
+      // Sombra suave debajo
+      el("ellipse", { cx: cx, cy: cy + R * 0.1, rx: R * 0.98, ry: R * 0.98, fill: "var(--sombra-embudo)", filter: "url(#difuminar)", opacity: 0.55 }, disco);
 
-      dibujarResumen(g, idx, n);
+      // Rebanadas: un círculo con trazo grueso por cada valor (pathLength 100 = porcentaje)
+      var campo = campoPie();
+      var partes = campo ? rebanadas(g, campo.campo) : [];
+      var total = g.proyectos.length;
+      var rm = (R + r) / 2, grueso = R - r;
+      if (!total) {
+        el("circle", { cx: cx, cy: cy, r: rm, fill: "none", stroke: aclarar(g.color, 0.55), "stroke-width": grueso }, disco);
+      }
+      var acumulado = 0, hueco = partes.length > 1 ? 0.6 : 0;
+      partes.forEach(function (p) {
+        var largo = p.num * 100 / total;
+        var c = el("circle", { cx: cx, cy: cy, r: rm, fill: "none", stroke: p.color, "stroke-width": grueso,
+                               pathLength: 100, "stroke-dasharray": Math.max(largo - hueco, 0.1) + " " + (100 - largo + hueco),
+                               "stroke-dashoffset": -acumulado, transform: "rotate(-90 " + cx + " " + cy + ")",
+                               "class": "rebanada" }, disco);
+        el("title", {}, c).textContent = p.nombre + ": " + p.num + " proyecto(s)";
+        acumulado += largo;
+      });
+
+      // Volumen: sombra en la pared interior y brillo en el borde (como si fuera la superficie del anillo)
+      var rid = "volumen";
+      var rg = el("radialGradient", { id: rid, cx: cx, cy: cy, r: R, gradientUnits: "userSpaceOnUse" }, defs);
+      [[r / R, "rgba(0,0,0,.35)"], [r / R + 0.08, "rgba(0,0,0,.08)"], [0.86, "rgba(255,255,255,.10)"], [1, "rgba(0,0,0,.22)"]]
+        .forEach(function (s) { el("stop", { offset: s[0], "stop-color": s[1] }, rg); });
+      el("path", { d: dona(cx, cy, R, r), fill: "url(#" + rid + ")", "fill-rule": "evenodd", "pointer-events": "none" }, disco);
+      el("circle", { cx: cx, cy: cy, r: R - 0.75, fill: "none", stroke: aclarar(g.color, 0.45), "stroke-width": 1.5, "pointer-events": "none" }, disco);
+
+      // Hueco del centro con el nombre, el número y el porcentaje
+      el("circle", { cx: cx, cy: cy, r: r, fill: "var(--tarjeta)", stroke: aclarar(g.color, -0.2), "stroke-width": 1.5 }, disco);
+      var tn = chico ? 15 : 18, tnum = chico ? 34 : 44, tp = chico ? 13 : 15;
+      var t1 = el("text", { x: cx, y: cy - tnum * 0.42, "text-anchor": "middle", fill: "var(--texto)", "font-size": tn, "font-weight": 600 }, disco);
+      t1.textContent = recortar(g.nombre, r * 1.9, tn);
+      var t2 = el("text", { x: cx, y: cy + tnum * 0.42, "text-anchor": "middle", fill: g.color, "font-size": tnum, "font-weight": 700 }, disco);
+      t2.textContent = total;
+      var t3 = el("text", { x: cx, y: cy + tnum * 0.42 + tp + 6, "text-anchor": "middle", fill: "var(--texto-suave)", "font-size": tp }, disco);
+      t3.textContent = porcentaje(g) + "% del total";
+
+      disco.addEventListener("click", salirDeFoco);
+      disco.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); salirDeFoco(); } });
+
+      dibujarResumen(g, idx, n, partes, campo);
     }
 
-    // Datos generales del anillo enfocado: indicadores y reparto por los otros campos
-    function dibujarResumen(g, idx, n) {
+    // Forma de dona (círculo grande menos círculo chico)
+    function dona(cx, cy, R, r) {
+      function circulo(rr) {
+        return "M" + (cx - rr) + "," + cy + " a" + rr + "," + rr + " 0 1 0 " + (2 * rr) + ",0 a" + rr + "," + rr + " 0 1 0 " + (-2 * rr) + ",0 Z ";
+      }
+      return circulo(R) + circulo(r);
+    }
+
+    // Datos generales debajo de la dona: indicadores, a qué campo corresponden las rebanadas y su leyenda
+    function dibujarResumen(g, idx, n, partes, campo) {
       var caja = document.getElementById("resumenFoco");
       caja.innerHTML = "";
+      caja.classList.remove("desvanecer");
       var config = AGRUPAR_POR.filter(function (o) { return o.campo === estado.agruparPor; })[0];
 
       // Lugar en el embudo: para Etapa es su posición en la lista de Parámetros
@@ -482,31 +551,38 @@
           fila.appendChild(t);
         });
       caja.appendChild(fila);
+      if (!campo || !g.proyectos.length) return;
 
-      // Reparto por los otros campos (por ejemplo, si se agrupa por Etapa: por Coordinador y por Área)
-      AGRUPAR_POR.forEach(function (o) {
-        if (o.campo === estado.agruparPor) return;
-        var cuenta = {};
-        g.proyectos.forEach(function (p) { var v = p[o.campo] || "Sin dato"; cuenta[v] = (cuenta[v] || 0) + 1; });
-        var valores = Object.keys(cuenta).sort(function (a, b) { return cuenta[b] - cuenta[a] || a.localeCompare(b, "es"); });
-        if (!valores.length) return;
-        var renglon = document.createElement("div");
-        renglon.className = "reparto";
-        var etq = document.createElement("span");
-        etq.className = "reparto-titulo";
-        etq.textContent = o.titulo + ":";
-        renglon.appendChild(etq);
-        valores.forEach(function (v) {
-          var chip = document.createElement("span");
-          chip.className = "chip";
-          chip.textContent = v + " ";
-          var b = document.createElement("b");
-          b.textContent = cuenta[v];
-          chip.appendChild(b);
-          renglon.appendChild(chip);
-        });
-        caja.appendChild(renglon);
+      // Botones para elegir cómo se reparten las rebanadas
+      var selector = document.createElement("div");
+      selector.className = "control selector-pie";
+      selector.innerHTML = '<span class="etiqueta">Rebanadas por:</span><div class="botones"></div>';
+      camposReparto().forEach(function (o) {
+        var b = document.createElement("button");
+        b.textContent = o.titulo;
+        b.classList.toggle("activo", o.campo === campo.campo);
+        b.onclick = function () { estado.dividirPor = o.campo; dibujarEmbudo(ultimoGrupos); };
+        selector.lastChild.appendChild(b);
       });
+      caja.appendChild(selector);
+
+      // Leyenda: color de cada rebanada, su nombre y cuántos proyectos tiene
+      var leyenda = document.createElement("div");
+      leyenda.className = "reparto";
+      partes.forEach(function (p) {
+        var chip = document.createElement("span");
+        chip.className = "chip";
+        var punto = document.createElement("i");
+        punto.className = "punto";
+        punto.style.background = p.color;
+        chip.appendChild(punto);
+        chip.appendChild(document.createTextNode(p.nombre + " "));
+        var b = document.createElement("b");
+        b.textContent = p.num;
+        chip.appendChild(b);
+        leyenda.appendChild(chip);
+      });
+      caja.appendChild(leyenda);
     }
 
     // Mueve un elemento desde donde estaba antes (desde) hasta su lugar nuevo, con animación
@@ -524,7 +600,53 @@
       ], { duration: ms, easing: "cubic-bezier(.2,.8,.2,1)" });
     }
 
-    // Al hacer clic en un anillo: zoom y se queda solo ese anillo arriba al centro
+    // Transición: el anillo de lado (tronco de cono) sube al centro y "se inclina" hasta verse desde arriba
+    function girarHaciaArriba(desde, grupo) {
+      var svg = document.querySelector("#embudo svg");
+      var disco = document.querySelector("#embudo .disco");
+      if (!svg || !disco || !medidasDisco || !disco.animate) return;
+      var m = medidasDisco, R = m.R;
+      var plano = (m.chico ? 9 : 16) / R;          // qué tan aplastada se ve la boca de lado
+      if (plano > 0.3) plano = 0.3;
+
+      // 1) Un anillo de lado temporal, del ancho de la dona, que vuela desde donde estaba
+      var defs = svg.querySelector("defs");
+      var alto = R * 0.55, et = R * plano, wt = 2 * R, wb = wt * 0.8;
+      var fantasma = dibujarAnillo(svg, defs, grupo, 99, m.cx, m.cy, wt, wb, alto, et, et * 0.8,
+                                   { nombre: 0.01, num: 0.01, porc: 0.01 });
+      fantasma.classList.add("fantasma");
+      fantasma.style.transformBox = "view-box";
+      fantasma.style.transformOrigin = m.cx + "px " + m.cy + "px";
+      // Cuentas para que empiece justo donde estaba el anillo (el giro es alrededor del centro de la boca)
+      var hasta = fantasma.getBoundingClientRect();
+      var caja = svg.getBoundingClientRect(), k = caja.width / svg.viewBox.baseVal.width;
+      var ox = caja.left + m.cx * k, oy = caja.top + m.cy * k;
+      var sx = desde.width / hasta.width, sy = desde.height / hasta.height;
+      var dx = desde.left - ox - sx * (hasta.left - ox);
+      var dy = desde.top - oy - sy * (hasta.top - oy);
+      var t1 = 460, t2 = 620;
+      fantasma.animate([
+        { transform: "translate(" + dx + "px," + dy + "px) scale(" + sx + "," + sy + ")" },
+        { transform: "none" }
+      ], { duration: t1, easing: "cubic-bezier(.3,.7,.3,1)" });
+      // 2) Después, el cuerpo del cono se "esconde" hacia arriba (lo vemos desde encima)...
+      fantasma.animate([
+        { transform: "none", opacity: 1 },
+        { transform: "scale(1, 0)", opacity: 0 }
+      ], { duration: t2 * 0.7, delay: t1, easing: "ease-in", fill: "forwards" }).onfinish = function () { fantasma.remove(); };
+      // ...y la boca se abre de elipse a círculo: la dona aparece vista desde arriba
+      disco.style.transformBox = "view-box";
+      disco.style.transformOrigin = m.cx + "px " + m.cy + "px";
+      disco.animate([
+        { transform: "scale(1," + plano + ")", opacity: 0 },
+        { transform: "scale(1," + plano + ")", opacity: 1, offset: 0.12 },
+        { transform: "scale(1.03,1.03)", opacity: 1, offset: 0.8 },
+        { transform: "none", opacity: 1 }
+      ], { duration: t2, delay: t1 - 40, easing: "cubic-bezier(.25,.8,.25,1)", fill: "backwards" });
+      return t1 + t2;
+    }
+
+    // Al hacer clic en un anillo: sube al centro y gira hasta verse desde arriba
     function enfocar(nombre, seg) {
       if (animando) return;
       if (sinMovimiento) { estado.seleccionado = nombre; dibujarTodo(); return; }
@@ -536,7 +658,7 @@
       document.getElementById("listas").classList.add("desvanecer");
       setTimeout(function () {
         var desde = seg.getBoundingClientRect();
-        // 2) Se dibuja la vista enfocada y el anillo "vuela" a su lugar arriba al centro
+        // 2) Se dibuja la vista enfocada y el anillo vuela y gira hasta su lugar
         estado.seleccionado = nombre;
         dibujarTodo();
         var esc = document.getElementById("escenario");
@@ -544,25 +666,45 @@
         if (esc.getBoundingClientRect().top < 0) esc.scrollIntoView({ block: "start" });
         var corrido = window.scrollY - antes;
         desde = { left: desde.left, top: desde.top - corrido, width: desde.width, height: desde.height };
-        volarDesde(document.querySelector("#embudo .anillo-foco"), desde, 600);
-        setTimeout(function () { animando = false; }, 600);
+        var grupo = ultimoGrupos.filter(function (g) { return g.nombre === nombre; })[0];
+        var dura = girarHaciaArriba(desde, grupo) || 600;
+        setTimeout(function () { animando = false; }, dura);
       }, 280);
     }
 
-    // Botón "Ver todo el embudo", tecla Esc o clic en el anillo grande
+    // Botón "Ver todo el embudo", tecla Esc o clic en la dona
     function salirDeFoco() {
       if (!estado.seleccionado || animando) return;
       var nombre = estado.seleccionado;
-      var anillo = document.querySelector("#embudo .anillo-foco");
-      var desde = anillo && anillo.getBoundingClientRect();
-      estado.seleccionado = null;
-      dibujarTodo();
-      if (sinMovimiento || !desde) return;
-      document.querySelectorAll("#embudo .segmento").forEach(function (s) {
-        if (s.getAttribute("data-nombre") === nombre) { volarDesde(s, desde, 520); s.focus({ preventScroll: true }); }
-        else s.classList.add("entrando");
-      });
+      var disco = document.querySelector("#embudo .disco");
+      function volver() {
+        var desde = disco && disco.getBoundingClientRect();
+        if (desde && medidasDisco) {   // la dona aplastada (vista de lado) mide lo mismo de ancho y poco de alto
+          var plano = Math.min((medidasDisco.chico ? 9 : 16) / medidasDisco.R, 0.3);
+          desde = { left: desde.left, width: desde.width, height: desde.height * plano * 3,
+                    top: desde.top + desde.height / 2 - desde.height * plano * 1.5 };
+        }
+        estado.seleccionado = null;
+        dibujarTodo();
+        animando = false;
+        if (sinMovimiento || !desde) return;
+        document.querySelectorAll("#embudo .segmento").forEach(function (s) {
+          if (s.getAttribute("data-nombre") === nombre) { volarDesde(s, desde, 520); s.focus({ preventScroll: true }); }
+          else s.classList.add("entrando");
+        });
+      }
+      if (sinMovimiento || !disco || !disco.animate || !medidasDisco) return volver();
+      // La dona se "acuesta" otra vez (vista de lado) antes de regresar al embudo
+      animando = true;
+      var plano = Math.min((medidasDisco.chico ? 9 : 16) / medidasDisco.R, 0.3);
+      disco.style.transformBox = "view-box";
+      disco.style.transformOrigin = medidasDisco.cx + "px " + medidasDisco.cy + "px";
+      document.getElementById("resumenFoco").classList.add("desvanecer");
+      document.getElementById("listas").classList.add("desvanecer");
+      disco.animate([{ transform: "none" }, { transform: "scale(1," + plano + ")" }],
+                    { duration: 300, easing: "ease-in", fill: "forwards" }).onfinish = volver;
     }
+
 
     // Si el nombre no cabe en la sección, lo corta con "…"
     function recortar(texto, ancho, tam) {
