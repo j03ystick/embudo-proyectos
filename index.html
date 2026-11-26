@@ -58,10 +58,20 @@
     </div>
 
     <!-- Aquí se dibuja el embudo 3D -->
-    <div class="escenario">
+    <div class="escenario" id="escenario">
+      <!-- Barra que aparece solo cuando se enfoca un anillo -->
+      <div class="barra-foco">
+        <button class="boton-volver" id="volver">← Ver todo el embudo</button>
+        <span class="tecla-esc">o presiona <kbd>Esc</kbd></span>
+      </div>
       <div class="embudo" id="embudo"></div>
-      <p class="ayuda">Haz clic en una sección del embudo para ver solo sus proyectos. Clic otra vez para ver todos.</p>
+      <!-- Datos generales del anillo enfocado -->
+      <div class="resumen-foco" id="resumenFoco"></div>
+      <p class="ayuda" id="ayuda">Haz clic en un anillo del embudo para verlo en grande con sus proyectos.</p>
     </div>
+
+    <!-- Título de las tarjetas cuando hay un anillo enfocado -->
+    <h2 class="titulo-tarjetas" id="tituloTarjetas"></h2>
 
     <!-- Aquí se dibujan las listas de proyectos -->
     <div class="listas" id="listas"></div>
@@ -198,6 +208,7 @@
     }
 
     // Convierte cada fila (encabezado: valor) en un proyecto con nombres de campo sencillos
+    var NOMBRES_CAMPO = {};   // "area" -> "Área" (el encabezado tal cual viene en el Excel)
     function limpiarFilas(filas) {
       return filas.map(function (fila) {
         var p = {};
@@ -205,6 +216,7 @@
           if (col.charAt(0) === "@" || col === "ItemInternalId") return;   // columnas internas de Excel Online
           var campo = normalizar(col);
           if (campo === "proyecto") campo = "nombre";
+          if (!NOMBRES_CAMPO[campo]) NOMBRES_CAMPO[campo] = col.toString().trim();
           p[campo] = (fila[col] === null || fila[col] === undefined ? "" : fila[col]).toString().trim();
         });
         return p;
@@ -224,7 +236,12 @@
         cont.appendChild(b);
       });
       document.querySelectorAll("#botonesOrden button").forEach(function (b) {
-        b.onclick = function () { estado.orden = b.dataset.orden; dibujarTodo(); };
+        b.onclick = function () { estado.orden = b.dataset.orden; estado.seleccionado = null; dibujarTodo(); };
+      });
+      document.getElementById("volver").onclick = salirDeFoco;
+      document.addEventListener("keydown", function (e) {
+        var panelAbierto = document.getElementById("fondoPanel").classList.contains("abierto");
+        if (e.key === "Escape" && estado.seleccionado && !panelAbierto) salirDeFoco();
       });
       prepararPanel();
       dibujarTodo();
@@ -278,6 +295,8 @@
         b.classList.toggle("activo", b.dataset.orden === estado.orden);
       });
       var grupos = armarGrupos();
+      // Si el anillo enfocado ya no existe (p. ej. se quitó en Parámetros), se vuelve a la vista completa
+      if (estado.seleccionado && !grupos.some(function (g) { return g.nombre === estado.seleccionado; })) estado.seleccionado = null;
       actualizarIndicadores();
       dibujarEmbudo(grupos);
       dibujarListas(grupos);
@@ -301,11 +320,72 @@
     }
 
     var ultimoGrupos = [];
+    var animando = false;   // evita clics dobles mientras corre una animación
+    var sinMovimiento = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+    var elipse = function (w, chico) { return Math.max(5, Math.min(w * 0.045, chico ? 9 : 16)); };   // qué tan "redonda" se ve la boca
+
+    // Dibuja un anillo (tronco de cono) con su nombre, número y porcentaje. Devuelve el grupo <g>.
+    // tam = tamaños de letra { nombre, num, porc }
+    function dibujarAnillo(svg, defs, g, idx, cx, y, wt, wb, alto, et, eb, tam) {
+      var color = g.color;
+      // Degradado horizontal: orillas oscuras, brillo cerca del centro izquierdo
+      var gid = "grad" + idx;
+      var lg = el("linearGradient", { id: gid, x1: "0", x2: "1", y1: "0", y2: "0" }, defs);
+      [[0, aclarar(color, -0.45)], [0.18, aclarar(color, -0.12)], [0.38, aclarar(color, 0.28)],
+       [0.55, color], [0.82, aclarar(color, -0.22)], [1, aclarar(color, -0.5)]].forEach(function (p) {
+        el("stop", { offset: p[0], "stop-color": p[1] }, lg);
+      });
+      // Interior de la boca (más oscuro abajo para dar profundidad)
+      var bid = "boca" + idx;
+      var rg = el("linearGradient", { id: bid, x1: "0", x2: "0", y1: "0", y2: "1" }, defs);
+      el("stop", { offset: 0, "stop-color": aclarar(color, -0.55) }, rg);
+      el("stop", { offset: 1, "stop-color": aclarar(color, 0.15) }, rg);
+
+      var seg = el("g", { "class": "segmento", "data-nombre": g.nombre }, svg);
+
+      var xl = cx - wt / 2, xr = cx + wt / 2, bl = cx - wb / 2, br = cx + wb / 2, yb = y + alto;
+      // Cuerpo: lado izquierdo, curva de abajo (frente), lado derecho, curva de arriba (frente)
+      var d = "M" + xl + "," + y +
+              " L" + bl + "," + yb +
+              " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb +
+              " L" + xr + "," + y +
+              " A" + (wt / 2) + "," + et + " 0 0 1 " + xl + "," + y + " Z";
+      el("path", { d: d, fill: "url(#" + gid + ")", "class": "cuerpo" }, seg);
+      // Brillo fino en el borde de abajo
+      el("path", { d: "M" + bl + "," + yb + " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb,
+                   fill: "none", stroke: aclarar(color, 0.35), "stroke-width": 1.2, opacity: 0.6 }, seg);
+      // Boca (elipse de arriba)
+      el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "url(#" + bid + ")" }, seg);
+      el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "none", stroke: aclarar(color, 0.45), "stroke-width": 1.5 }, seg);
+
+      // Textos: nombre y número (con porcentaje)
+      var sombra = "paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:3px";
+      var ty = y + et + (alto - et) / 2 - tam.nombre * 0.35;
+      var t1 = el("text", { x: cx, y: ty - tam.nombre * 0.35, "text-anchor": "middle", fill: "#fff",
+                            "font-size": tam.nombre, "font-weight": 600, style: sombra }, seg);
+      t1.textContent = recortar(g.nombre, wb, tam.nombre);
+      var t2 = el("text", { x: cx, y: ty + tam.num - tam.nombre * 0.35, "text-anchor": "middle", fill: "#fff", style: sombra }, seg);
+      var num = el("tspan", { "font-size": tam.num, "font-weight": 700 }, t2);
+      num.textContent = g.proyectos.length;
+      var porc = el("tspan", { "font-size": tam.porc, dx: 6, opacity: 0.9 }, t2);
+      porc.textContent = porcentaje(g) + "%";
+      return seg;
+    }
+
+    function porcentaje(g) { return Math.round(g.proyectos.length * 100 / (proyectos.length || 1)); }
+
     function dibujarEmbudo(grupos) {
       ultimoGrupos = grupos;
       var cont = document.getElementById("embudo");
       cont.innerHTML = "";
       var n = grupos.length;
+
+      // ¿Hay un anillo enfocado? Entonces se dibuja solo ese, en grande.
+      var elegido = estado.seleccionado && grupos.filter(function (g) { return g.nombre === estado.seleccionado; })[0];
+      document.getElementById("escenario").classList.toggle("con-foco", !!elegido);
+      if (elegido) return dibujarFoco(cont, elegido, grupos.indexOf(elegido), n);
+      document.getElementById("resumenFoco").innerHTML = "";
       if (!n) return;
 
       // Medidas en pixeles reales, para que el texto siempre se lea bien
@@ -315,20 +395,14 @@
       var sep = chico ? 8 : 10;               // espacio entre secciones
       var anchoMax = W * 0.96, anchoMin = W * (chico ? 0.42 : 0.30);
       var cx = W / 2;
-      var totalProy = proyectos.length || 1;
 
       // Ancho en cada "borde" (n+1 bordes): de ancho a angosto, o al revés
       var bordes = [];
-      for (var i = 0; i <= n; i++) {
-        var t = i / n;
-        var w = anchoMax - (anchoMax - anchoMin) * t;
-        bordes.push(w);
-      }
+      for (var i = 0; i <= n; i++) bordes.push(anchoMax - (anchoMax - anchoMin) * (i / n));
       if (estado.orden === "menor") bordes.reverse();
 
-      var elipse = function (w) { return Math.max(5, Math.min(w * 0.045, chico ? 9 : 16)); };   // qué tan "redonda" se ve la boca
-      var arriba = elipse(bordes[0]) + 4;
-      var H = arriba + n * alto + (n - 1) * sep + elipse(bordes[n]) + 30;
+      var arriba = elipse(bordes[0], chico) + 4;
+      var H = arriba + n * alto + (n - 1) * sep + elipse(bordes[n], chico) + 30;
 
       var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Embudo de proyectos" }, cont);
       var defs = el("defs", {}, svg);
@@ -336,69 +410,157 @@
       // Sombra suave debajo del embudo
       var filtro = el("filter", { id: "difuminar", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
       el("feGaussianBlur", { stdDeviation: 10 }, filtro);
-      var ultimoAncho = bordes[n];
-      el("ellipse", { cx: cx, cy: H - 16, rx: ultimoAncho * 0.55, ry: 10, fill: "var(--sombra-embudo)", filter: "url(#difuminar)" }, svg);
+      el("ellipse", { cx: cx, cy: H - 16, rx: bordes[n] * 0.55, ry: 10, fill: "var(--sombra-embudo)", filter: "url(#difuminar)" }, svg);
 
+      var tam = chico ? { nombre: 14, num: 20, porc: 12 } : { nombre: 17, num: 26, porc: 14 };
       grupos.forEach(function (g, i) {
         var y = arriba + i * (alto + sep);
-        var wt = bordes[i];
-        var wb = bordes[i + 1];
-        var et = elipse(wt), eb = elipse(wb);
-        var color = g.color;
-
-        // Degradado horizontal: orillas oscuras, brillo cerca del centro izquierdo
-        var gid = "grad" + i;
-        var lg = el("linearGradient", { id: gid, x1: "0", x2: "1", y1: "0", y2: "0" }, defs);
-        [[0, aclarar(color, -0.45)], [0.18, aclarar(color, -0.12)], [0.38, aclarar(color, 0.28)],
-         [0.55, color], [0.82, aclarar(color, -0.22)], [1, aclarar(color, -0.5)]].forEach(function (p) {
-          el("stop", { offset: p[0], "stop-color": p[1] }, lg);
-        });
-        // Interior de la boca (más oscuro abajo para dar profundidad)
-        var bid = "boca" + i;
-        var rg = el("linearGradient", { id: bid, x1: "0", x2: "0", y1: "0", y2: "1" }, defs);
-        el("stop", { offset: 0, "stop-color": aclarar(color, -0.55) }, rg);
-        el("stop", { offset: 1, "stop-color": aclarar(color, 0.15) }, rg);
-
-        var seg = el("g", { "class": "segmento" + (estado.seleccionado && estado.seleccionado !== g.nombre ? " apagada" : ""),
-                            tabindex: 0, role: "button" }, svg);
-        el("title", {}, seg).textContent = g.nombre + ": " + g.proyectos.length + " proyecto(s)";
-
-        var xl = cx - wt / 2, xr = cx + wt / 2, bl = cx - wb / 2, br = cx + wb / 2, yb = y + alto;
-        // Cuerpo: lado izquierdo, curva de abajo (frente), lado derecho, curva de arriba (frente)
-        var d = "M" + xl + "," + y +
-                " L" + bl + "," + yb +
-                " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb +
-                " L" + xr + "," + y +
-                " A" + (wt / 2) + "," + et + " 0 0 1 " + xl + "," + y + " Z";
-        el("path", { d: d, fill: "url(#" + gid + ")", "class": "cuerpo" }, seg);
-        // Brillo fino en el borde de abajo
-        el("path", { d: "M" + bl + "," + yb + " A" + (wb / 2) + "," + eb + " 0 0 0 " + br + "," + yb,
-                     fill: "none", stroke: aclarar(color, 0.35), "stroke-width": 1.2, opacity: 0.6 }, seg);
-        // Boca (elipse de arriba)
-        el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "url(#" + bid + ")" }, seg);
-        el("ellipse", { cx: cx, cy: y, rx: wt / 2, ry: et, fill: "none", stroke: aclarar(color, 0.45), "stroke-width": 1.5 }, seg);
-
-        // Textos: nombre y número (con porcentaje)
-        var ty = y + et + (alto - et) / 2 - (chico ? 4 : 6);
-        var tamNombre = chico ? 14 : 17, tamNum = chico ? 20 : 26;
-        var pct = Math.round(g.proyectos.length * 100 / totalProy);
-        var t1 = el("text", { x: cx, y: ty - (chico ? 4 : 6), "text-anchor": "middle", fill: "#fff",
-                              "font-size": tamNombre, "font-weight": 600,
-                              style: "paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:3px" }, seg);
-        t1.textContent = recortar(g.nombre, wb, tamNombre);
-        var t2 = el("text", { x: cx, y: ty + tamNum - (chico ? 4 : 6), "text-anchor": "middle", fill: "#fff",
-                              style: "paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:3px" }, seg);
-        var num = el("tspan", { "font-size": tamNum, "font-weight": 700 }, t2);
-        num.textContent = g.proyectos.length;
-        var porc = el("tspan", { "font-size": chico ? 12 : 14, dx: 6, opacity: 0.9 }, t2);
-        porc.textContent = pct + "%";
-
-        function elegir() {
-          estado.seleccionado = (estado.seleccionado === g.nombre) ? null : g.nombre;
-          dibujarTodo();
-        }
+        var wt = bordes[i], wb = bordes[i + 1];
+        var seg = dibujarAnillo(svg, defs, g, i, cx, y, wt, wb, alto, elipse(wt, chico), elipse(wb, chico), tam);
+        seg.setAttribute("tabindex", 0);
+        seg.setAttribute("role", "button");
+        seg.style.setProperty("--i", i);
+        el("title", {}, seg).textContent = g.nombre + ": " + g.proyectos.length + " proyecto(s). Clic para enfocar.";
+        function elegir() { enfocar(g.nombre, seg); }
         seg.addEventListener("click", elegir);
         seg.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(); } });
+      });
+    }
+
+    // ===== Vista enfocada: un solo anillo arriba al centro, en grande =====
+    function dibujarFoco(cont, g, idx, n) {
+      var W = Math.max(cont.clientWidth, 300);
+      var chico = W < 560;
+      var wt = Math.min(W * (chico ? 0.92 : 0.7), 620), wb = wt * 0.8;
+      var alto = chico ? 96 : 124;
+      var et = elipse(wt, chico) + 4, eb = elipse(wb, chico) + 4;
+      var cx = W / 2, arriba = et + 6;
+      var H = arriba + alto + eb + 26;
+
+      var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": g.nombre }, cont);
+      var defs = el("defs", {}, svg);
+      var filtro = el("filter", { id: "difuminar", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs);
+      el("feGaussianBlur", { stdDeviation: 10 }, filtro);
+      el("ellipse", { cx: cx, cy: H - 12, rx: wb * 0.5, ry: 9, fill: "var(--sombra-embudo)", filter: "url(#difuminar)" }, svg);
+
+      var tam = chico ? { nombre: 19, num: 34, porc: 15 } : { nombre: 24, num: 46, porc: 19 };
+      var seg = dibujarAnillo(svg, defs, g, 0, cx, arriba, wt, wb, alto, et, eb, tam);
+      seg.classList.add("anillo-foco");
+      seg.setAttribute("tabindex", 0);
+      seg.setAttribute("role", "button");
+      el("title", {}, seg).textContent = "Clic para volver a todo el embudo";
+      seg.addEventListener("click", salirDeFoco);
+      seg.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); salirDeFoco(); } });
+
+      dibujarResumen(g, idx, n);
+    }
+
+    // Datos generales del anillo enfocado: indicadores y reparto por los otros campos
+    function dibujarResumen(g, idx, n) {
+      var caja = document.getElementById("resumenFoco");
+      caja.innerHTML = "";
+      var config = AGRUPAR_POR.filter(function (o) { return o.campo === estado.agruparPor; })[0];
+
+      // Lugar en el embudo: para Etapa es su posición en la lista de Parámetros
+      var lugar, deTotal = n, nombreLugar = "Lugar en el embudo";
+      if (config.ordenFijo && config.lista) {
+        var pos = parametros[config.lista].indexOf(g.nombre);
+        lugar = pos >= 0 ? pos + 1 : idx + 1;
+        deTotal = parametros[config.lista].length || n;
+        nombreLugar = config.titulo + " del proceso";
+      } else lugar = idx + 1;
+
+      var fila = document.createElement("div");
+      fila.className = "mini-indicadores";
+      [[g.proyectos.length, "Proyectos"], [porcentaje(g) + "%", "Del total"], [lugar + " de " + deTotal, nombreLugar]]
+        .forEach(function (d) {
+          var t = document.createElement("div");
+          t.className = "mini";
+          t.innerHTML = '<div class="valor"></div><div class="etiqueta"></div>';
+          t.firstChild.textContent = d[0];
+          t.lastChild.textContent = d[1];
+          fila.appendChild(t);
+        });
+      caja.appendChild(fila);
+
+      // Reparto por los otros campos (por ejemplo, si se agrupa por Etapa: por Coordinador y por Área)
+      AGRUPAR_POR.forEach(function (o) {
+        if (o.campo === estado.agruparPor) return;
+        var cuenta = {};
+        g.proyectos.forEach(function (p) { var v = p[o.campo] || "Sin dato"; cuenta[v] = (cuenta[v] || 0) + 1; });
+        var valores = Object.keys(cuenta).sort(function (a, b) { return cuenta[b] - cuenta[a] || a.localeCompare(b, "es"); });
+        if (!valores.length) return;
+        var renglon = document.createElement("div");
+        renglon.className = "reparto";
+        var etq = document.createElement("span");
+        etq.className = "reparto-titulo";
+        etq.textContent = o.titulo + ":";
+        renglon.appendChild(etq);
+        valores.forEach(function (v) {
+          var chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = v + " ";
+          var b = document.createElement("b");
+          b.textContent = cuenta[v];
+          chip.appendChild(b);
+          renglon.appendChild(chip);
+        });
+        caja.appendChild(renglon);
+      });
+    }
+
+    // Mueve un elemento desde donde estaba antes (desde) hasta su lugar nuevo, con animación
+    function volarDesde(elem, desde, ms) {
+      if (!elem || !desde || !elem.animate) return;
+      var hasta = elem.getBoundingClientRect();
+      if (!hasta.width || !hasta.height) return;
+      var dx = (desde.left + desde.width / 2) - (hasta.left + hasta.width / 2);
+      var dy = (desde.top + desde.height / 2) - (hasta.top + hasta.height / 2);
+      var sx = desde.width / hasta.width, sy = desde.height / hasta.height;
+      elem.animate([
+        { transform: "translate(" + dx + "px," + dy + "px) scale(" + sx + "," + sy + ")" },
+        { transform: "translate(0,0) scale(1.04,1.04)", offset: 0.75 },
+        { transform: "none" }
+      ], { duration: ms, easing: "cubic-bezier(.2,.8,.2,1)" });
+    }
+
+    // Al hacer clic en un anillo: zoom y se queda solo ese anillo arriba al centro
+    function enfocar(nombre, seg) {
+      if (animando) return;
+      if (sinMovimiento) { estado.seleccionado = nombre; dibujarTodo(); return; }
+      animando = true;
+      // 1) El anillo elegido "salta" y los demás se desvanecen
+      document.querySelectorAll("#embudo .segmento").forEach(function (s) {
+        s.classList.add(s === seg ? "elegida" : "saliendo");
+      });
+      document.getElementById("listas").classList.add("desvanecer");
+      setTimeout(function () {
+        var desde = seg.getBoundingClientRect();
+        // 2) Se dibuja la vista enfocada y el anillo "vuela" a su lugar arriba al centro
+        estado.seleccionado = nombre;
+        dibujarTodo();
+        var esc = document.getElementById("escenario");
+        var antes = window.scrollY;
+        if (esc.getBoundingClientRect().top < 0) esc.scrollIntoView({ block: "start" });
+        var corrido = window.scrollY - antes;
+        desde = { left: desde.left, top: desde.top - corrido, width: desde.width, height: desde.height };
+        volarDesde(document.querySelector("#embudo .anillo-foco"), desde, 600);
+        setTimeout(function () { animando = false; }, 600);
+      }, 280);
+    }
+
+    // Botón "Ver todo el embudo", tecla Esc o clic en el anillo grande
+    function salirDeFoco() {
+      if (!estado.seleccionado || animando) return;
+      var nombre = estado.seleccionado;
+      var anillo = document.querySelector("#embudo .anillo-foco");
+      var desde = anillo && anillo.getBoundingClientRect();
+      estado.seleccionado = null;
+      dibujarTodo();
+      if (sinMovimiento || !desde) return;
+      document.querySelectorAll("#embudo .segmento").forEach(function (s) {
+        if (s.getAttribute("data-nombre") === nombre) { volarDesde(s, desde, 520); s.focus({ preventScroll: true }); }
+        else s.classList.add("entrando");
       });
     }
 
@@ -428,14 +590,27 @@
       document.getElementById("kpiAreas").textContent = distintos("area");
     }
 
-    // ===== 4) Listas de proyectos por grupo =====
+    // ===== 4) Proyectos: una columna por grupo, o tarjetas si hay un anillo enfocado =====
     function dibujarListas(grupos) {
       var listas = document.getElementById("listas");
+      var titulo = document.getElementById("tituloTarjetas");
       listas.innerHTML = "";
+      listas.classList.remove("desvanecer");
+
+      var elegido = estado.seleccionado && grupos.filter(function (g) { return g.nombre === estado.seleccionado; })[0];
+      listas.classList.toggle("tarjetas", !!elegido);
+      titulo.style.display = elegido ? "" : "none";
+      if (elegido) {
+        titulo.textContent = elegido.nombre + " · " + elegido.proyectos.length + " proyecto" + (elegido.proyectos.length === 1 ? "" : "s");
+        titulo.style.setProperty("--color", elegido.color);
+        if (!elegido.proyectos.length) {
+          listas.innerHTML = '<div class="sin-proyectos">Este anillo todavía no tiene proyectos.</div>';
+        }
+        elegido.proyectos.forEach(function (p, i) { listas.appendChild(tarjeta(p, elegido.color, i)); });
+        return;
+      }
 
       grupos.forEach(function (g) {
-        if (estado.seleccionado && estado.seleccionado !== g.nombre) return;
-
         var columna = document.createElement("div");
         columna.className = "columna";
         var titulo = document.createElement("h2");
@@ -467,6 +642,29 @@
         columna.appendChild(ul);
         listas.appendChild(columna);
       });
+    }
+
+    // Tarjeta de un proyecto: su nombre y cada dato del Excel con su encabezado
+    function tarjeta(p, color, i) {
+      var t = document.createElement("article");
+      t.className = "tarjeta";
+      t.style.setProperty("--color", color);
+      t.style.setProperty("--i", i);
+      var h = document.createElement("h3");
+      h.textContent = p.nombre;
+      t.appendChild(h);
+      var dl = document.createElement("dl");
+      Object.keys(p).forEach(function (c) {
+        if (c === "nombre" || c === estado.agruparPor || !p[c]) return;
+        var dt = document.createElement("dt");
+        dt.textContent = NOMBRES_CAMPO[c] || c;
+        var dd = document.createElement("dd");
+        dd.textContent = p[c];
+        dl.appendChild(dt);
+        dl.appendChild(dd);
+      });
+      t.appendChild(dl);
+      return t;
     }
 
     // ===== 5) Panel de Parámetros =====
