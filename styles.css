@@ -450,65 +450,62 @@ kbd {
 .titulo-tarjetas::before {
   content: ""; width: 12px; height: 12px; border-radius: 4px; background: var(--color);
 }
-/* Rejilla de tarjetas (dentro de cada carril y en el anillo enfocado) */
-.rejilla-tarjetas {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-  gap: 14px;
-}
+/* Fichas horizontales: una fila por proyecto con columnas alineadas (en cada carril y en el anillo enfocado) */
 .listas.tarjetas { margin-top: 12px; }
+.fichas { display: flex; flex-direction: column; gap: 8px; }
+.ficha-encabezado, .tarjeta {
+  display: grid;
+  grid-template-columns: var(--columnas);
+  align-items: center;
+  column-gap: 16px;
+}
+.ficha-encabezado {
+  padding: 0 16px 0 22px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--texto-suave);
+}
 .tarjeta {
-  display: flex; flex-direction: column;
+  position: relative;
   background: var(--tarjeta);
   border: 1px solid var(--borde);
-  border-top: 4px solid var(--color);
-  border-radius: 14px;
-  padding: 12px 16px 12px;
+  border-radius: 12px;
+  padding: 12px 16px 12px 22px;
   box-shadow: var(--sombra);
   animation: subir .45s ease-out both;
-  animation-delay: calc(.2s + var(--i, 0) * 50ms);
-  transition: transform .15s, box-shadow .15s;
+  animation-delay: calc(.2s + var(--i, 0) * 40ms);
+  transition: box-shadow .15s, border-color .15s;
   min-width: 0;
 }
-.tarjeta:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(20,32,51,.08), 0 14px 30px rgba(20,32,51,.12); }
-.tarjeta-cabeza {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  min-height: 24px; margin-bottom: 6px;
+.tarjeta::before {   /* franja de color del grupo a la izquierda */
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+  border-radius: 12px 0 0 12px; background: var(--color);
 }
+.tarjeta:hover { border-color: color-mix(in srgb, var(--color) 55%, var(--borde)); box-shadow: 0 2px 4px rgba(20,32,51,.08), 0 10px 24px rgba(20,32,51,.10); }
+.celda { min-width: 0; font-size: 13.5px; font-weight: 500; overflow-wrap: anywhere; }
+.celda.vacia { color: var(--texto-suave); font-weight: 400; }
 .tarjeta .folio {
-  font-size: 12px; font-weight: 600; letter-spacing: .04em;
+  display: block;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .04em;
   color: var(--texto-suave); font-variant-numeric: tabular-nums;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .tarjeta h3 {
-  margin: 0 0 12px; font-size: 15px; font-weight: 600; line-height: 1.35;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  margin: 1px 0 0; font-size: 14.5px; font-weight: 600; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.tarjeta .datos {
-  margin: 0; display: grid; grid-template-columns: 112px minmax(0, 1fr);
-  gap: 0; font-size: 13px;
-  border-top: 1px solid var(--borde);
+.celda-notas { text-align: right; }
+.boton-notas {
+  border: 1px solid var(--borde); background: var(--tarjeta-suave); color: var(--acento);
+  border-radius: 8px; padding: 5px 10px; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 500;
 }
-.tarjeta .datos dt, .tarjeta .datos dd {
-  padding: 6px 0; border-bottom: 1px solid var(--borde);
-}
-.tarjeta .datos dt {
-  color: var(--texto-suave); font-size: 12.5px; padding-right: 8px;
-  display: flex; align-items: center;
-}
-.tarjeta .datos dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; white-space: pre-line; }
-.tarjeta .notas { margin-top: auto; padding-top: 10px; font-size: 13px; }
-.tarjeta .notas summary {
-  cursor: pointer; color: var(--acento); font-weight: 500; list-style: none;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.tarjeta .notas summary::-webkit-details-marker { display: none; }
-.tarjeta .notas summary::before { content: "▸"; transition: transform .15s; display: inline-block; }
-.tarjeta .notas[open] summary::before { transform: rotate(90deg); }
+.boton-notas::after { content: " ▾"; }
+.tarjeta.abierta .boton-notas::after { content: " ▴"; }
+.boton-notas:hover { background: var(--fondo); }
 .tarjeta .texto-notas {
-  margin-top: 8px; padding: 8px 10px; border-radius: 8px;
-  background: var(--tarjeta-suave); color: var(--texto);
-  white-space: pre-line; line-height: 1.5; max-height: 220px; overflow: auto;
+  grid-column: 1 / -1;
+  margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+  background: var(--tarjeta-suave); color: var(--texto); font-size: 13px;
+  white-space: pre-line; line-height: 1.5; max-height: 240px; overflow: auto;
 }
 .sin-proyectos {
   grid-column: 1 / -1;
@@ -534,7 +531,16 @@ kbd {
   .mini .valor { font-size: 18px; }
   .carril { padding: 12px; }
   .resumen-semaforo { margin-left: 0; width: 100%; }
-  .rejilla-tarjetas { grid-template-columns: 1fr; }
+  /* En celular cada ficha se acomoda en bloque, con la etiqueta de cada dato */
+  .ficha-encabezado { display: none; }
+  .tarjeta { grid-template-columns: 1fr 1fr; row-gap: 8px; }
+  .celda-proyecto, .celda-semaforo, .tarjeta .texto-notas { grid-column: 1 / -1; }
+  .celda[data-etiqueta]:not(.celda-semaforo)::before {
+    content: attr(data-etiqueta); display: block;
+    font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; color: var(--texto-suave);
+  }
+  .celda-notas { grid-column: 1 / -1; text-align: left; }
+  .celda-notas:empty { display: none; }
 }
 
 /* Importar / exportar el Excel de proyectos (panel de Parámetros) */

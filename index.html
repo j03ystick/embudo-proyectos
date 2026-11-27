@@ -953,12 +953,6 @@
       });
     }
 
-    function rejillaTarjetas(lista, color) {
-      var rejilla = nuevo("div", "rejilla-tarjetas");
-      ordenarPorUrgencia(lista).forEach(function (p, i) { rejilla.appendChild(tarjeta(p, color, i)); });
-      return rejilla;
-    }
-
     function dibujarListas(grupos) {
       var listas = document.getElementById("listas");
       var titulo = document.getElementById("tituloTarjetas");
@@ -996,51 +990,94 @@
       });
     }
 
+    // Columnas de datos que se muestran para una lista de proyectos (las mismas para todas sus fichas)
+    function columnasDe(lista) {
+      var vistas = {};
+      lista.forEach(function (p) {
+        Object.keys(p).forEach(function (c) {
+          if (c.charAt(0) !== "_" && p[c] && c !== "nombre" && c !== "folio" && c !== estado.agruparPor &&
+            NOTAS.indexOf(c) === -1 && OCULTOS_SIEMPRE.indexOf(c) === -1 && !(c === "semaforo" && semaforoActivo())) vistas[c] = 1;
+        });
+      });
+      return Object.keys(vistas).sort(function (a, b) {
+        var ia = ORDEN_CAMPOS.indexOf(a), ib = ORDEN_CAMPOS.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+    }
+
+    // Fichas horizontales: una fila ancha por proyecto, con sus datos en columnas alineadas
+    function rejillaTarjetas(lista, color) {
+      var cols = columnasDe(lista);
+      var conNotas = lista.some(function (p) { return NOTAS.some(function (c) { return p[c]; }); });
+      var plantilla = "minmax(200px, 2.4fr)" + (semaforoActivo() ? " 172px" : "") +
+        cols.map(function () { return " minmax(92px, 1fr)"; }).join("") + (conNotas ? " 92px" : "");
+      var tabla = nuevo("div", "fichas");
+      tabla.style.setProperty("--columnas", plantilla);
+
+      var enc = nuevo("div", "ficha-encabezado");
+      enc.appendChild(nuevo("span", "", "Proyecto"));
+      if (semaforoActivo()) enc.appendChild(nuevo("span", "", "Semáforo"));
+      cols.forEach(function (c) { enc.appendChild(nuevo("span", "", nombreCampo(c))); });
+      if (conNotas) enc.appendChild(nuevo("span", "", ""));
+      tabla.appendChild(enc);
+
+      ordenarPorUrgencia(lista).forEach(function (p, i) { tabla.appendChild(tarjeta(p, color, i, cols, conNotas)); });
+      return tabla;
+    }
+
     function nombreCampo(c) {
       return c === "etapa" ? "Etapa" : c === "coordinador" ? "Coordinador" : (NOMBRES_CAMPO[c] || c);
     }
 
-    // Tarjeta de un proyecto: folio y semáforo arriba, nombre, datos alineados y notas plegables
-    function tarjeta(p, color, i) {
+    // Ficha de un proyecto (una fila): folio y nombre, semáforo, datos y botón de notas
+    function tarjeta(p, color, i, cols, conNotas) {
       var t = nuevo("article", "tarjeta");
       t.style.setProperty("--color", color);
       t.style.setProperty("--i", Math.min(i, 12));
 
-      var cabeza = nuevo("div", "tarjeta-cabeza");
-      cabeza.appendChild(nuevo("span", "folio", p.folio || ""));
+      var celProy = nuevo("div", "celda celda-proyecto");
+      if (p.folio) celProy.appendChild(nuevo("span", "folio", p.folio));
+      celProy.appendChild(nuevo("h3", "", p.nombre));
+      t.appendChild(celProy);
+
       if (semaforoActivo()) {
         var s = semaforoDe(p);
+        var celSem = nuevo("div", "celda celda-semaforo");
+        celSem.dataset.etiqueta = "Semáforo";
         var luz = nuevo("span", "semaforo " + s.color);
         luz.appendChild(nuevo("i"));
         luz.appendChild(document.createTextNode(s.texto));
-        cabeza.appendChild(luz);
+        celSem.appendChild(luz);
+        t.appendChild(celSem);
       }
-      t.appendChild(cabeza);
-      t.appendChild(nuevo("h3", "", p.nombre));
 
-      // Datos: primero los importantes en orden fijo, luego el resto de columnas del Excel
-      var nota = NOTAS.filter(function (c) { return p[c]; })[0];
-      var campos = Object.keys(p).filter(function (c) {
-        return c.charAt(0) !== "_" && p[c] && c !== "nombre" && c !== "folio" && c !== estado.agruparPor &&
-          NOTAS.indexOf(c) === -1 && OCULTOS_SIEMPRE.indexOf(c) === -1 && !(c === "semaforo" && semaforoActivo());
-      }).sort(function (a, b) {
-        var ia = ORDEN_CAMPOS.indexOf(a), ib = ORDEN_CAMPOS.indexOf(b);
-        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      cols.forEach(function (c) {
+        var cel = nuevo("div", "celda" + (p[c] ? "" : " vacia"), p[c] || "—");
+        cel.dataset.etiqueta = nombreCampo(c);
+        t.appendChild(cel);
       });
-      if (campos.length) {
-        var dl = nuevo("dl", "datos");
-        campos.forEach(function (c) {
-          dl.appendChild(nuevo("dt", "", nombreCampo(c)));
-          dl.appendChild(nuevo("dd", "", p[c]));
-        });
-        t.appendChild(dl);
-      }
-      if (nota) {
-        var det = nuevo("details", "notas");
-        var lineas = p[nota].split("\n").filter(Boolean).length;
-        det.appendChild(nuevo("summary", "", nombreCampo(nota) + (lineas > 1 ? " (" + lineas + " líneas)" : "")));
-        det.appendChild(nuevo("div", "texto-notas", p[nota]));
-        t.appendChild(det);
+
+      var nota = NOTAS.filter(function (c) { return p[c]; })[0];
+      if (conNotas) {
+        var celNota = nuevo("div", "celda celda-notas");
+        if (nota) {
+          var boton = nuevo("button", "boton-notas", "Notas");
+          boton.type = "button";
+          boton.title = nombreCampo(nota);
+          boton.setAttribute("aria-expanded", "false");
+          var texto = nuevo("div", "texto-notas", p[nota]);
+          texto.hidden = true;
+          boton.onclick = function () {
+            texto.hidden = !texto.hidden;
+            boton.setAttribute("aria-expanded", String(!texto.hidden));
+            t.classList.toggle("abierta", !texto.hidden);
+          };
+          celNota.appendChild(boton);
+          t.appendChild(celNota);
+          t.appendChild(texto);
+        } else {
+          t.appendChild(celNota);
+        }
       }
       return t;
     }
