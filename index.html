@@ -264,12 +264,16 @@
     function limpiarFilas(filas) {
       NOMBRES_CAMPO = {};
       return filas.map(function (fila) {
-        var p = {};
+        var p = {}, propia = {};
         Object.keys(fila).forEach(function (col) {
           if (col.charAt(0) === "@" || col === "ItemInternalId") return;   // columnas internas de Excel Online
           var campo = normalizar(col);
-          if (SINONIMOS[campo]) campo = SINONIMOS[campo];
-          if (p[campo]) return;   // si dos columnas significan lo mismo, se queda la primera con dato
+          var esSinonimo = !!SINONIMOS[campo];
+          if (esSinonimo) campo = SINONIMOS[campo];
+          // Si dos columnas significan lo mismo, gana la que se llama exactamente igual
+          // (p. ej. "Etapa" gana sobre "Estatus"); entre sinónimos, la primera con dato
+          if (esSinonimo && (p[campo] || propia[campo])) return;
+          if (!esSinonimo) { propia[campo] = true; NOMBRES_CAMPO[campo] = col.toString().trim(); }
           if (!NOMBRES_CAMPO[campo]) NOMBRES_CAMPO[campo] = col.toString().trim();
           var v = fila[col];
           if (v instanceof Date) {   // se guarda la fecha real (para el semáforo) y se muestra bonita
@@ -1265,8 +1269,8 @@
       });
       var libro = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(libro, hoja, PESTANA_PROYECTOS);
-      // Segunda pestaña con los valores válidos de Estatus y Responsable (de Parámetros), como referencia
-      var listas = [["Estatus", "Responsable"]];
+      // Segunda pestaña con los valores válidos de Etapa y Responsable (de Parámetros), como referencia
+      var listas = [["Etapa", "Responsable"]];
       for (var i = 0; i < Math.max(parametros.etapas.length, parametros.coordinadores.length); i++) {
         listas.push([parametros.etapas[i] || "", parametros.coordinadores[i] || ""]);
       }
