@@ -73,7 +73,10 @@
     <!-- Título de las tarjetas cuando hay un anillo enfocado -->
     <h2 class="titulo-tarjetas" id="tituloTarjetas"></h2>
 
-    <!-- Aquí se dibujan las listas de proyectos -->
+    <!-- Qué significa cada color del semáforo -->
+    <div class="leyenda-semaforo" id="leyendaSemaforo" style="display:none"></div>
+
+    <!-- Aquí se dibujan los carriles de proyectos -->
     <div class="listas" id="listas"></div>
   </div>
 
@@ -90,6 +93,27 @@
         </div>
         <label class="interruptor">
           <input type="checkbox" id="interruptorTema" aria-label="Tema oscuro">
+          <span class="pista"></span>
+        </label>
+      </div>
+
+      <!-- Semáforo por fecha final proyectada -->
+      <div class="tema-fila semaforo-fila">
+        <div>
+          <div class="titulo-tema">Semáforo por fecha final</div>
+          <div class="nota-tema">
+            Pone una luz en cada proyecto según su <b>Fecha de Fin</b>. Se guarda para todos con «Guardar para todos».
+            <div class="luces-ej">
+              <span class="luz-ej rojo"><i></i>Rojo: la fecha final ya pasó</span>
+              <span class="luz-ej amarillo"><i></i>Amarillo: vence en
+                <input type="number" id="diasAviso" min="1" max="90" value="7" aria-label="Días de aviso"> días o menos</span>
+              <span class="luz-ej verde"><i></i>Verde: en tiempo (faltan más días)</span>
+              <span class="luz-ej gris"><i></i>Gris: sin fecha final, o ya Concluido / Cerrado</span>
+            </div>
+          </div>
+        </div>
+        <label class="interruptor">
+          <input type="checkbox" id="interruptorSemaforo" aria-label="Semáforo por fecha final">
           <span class="pista"></span>
         </label>
       </div>
@@ -169,10 +193,11 @@
     var SINONIMOS = {
       proyecto: "nombre", nombre_de_proyecto: "nombre", nombre_del_proyecto: "nombre",
       estatus: "etapa", status: "etapa", fase: "etapa",
-      responsable: "coordinador"
+      responsable: "coordinador",
+      // fecha final proyectada (la usa el semáforo)
+      fecha_de_fin: "fecha_fin", fecha_final: "fecha_fin", fecha_final_proyectada: "fecha_fin",
+      fecha_fin_proyectada: "fecha_fin", fecha_de_termino: "fecha_fin", fecha_termino: "fecha_fin"
     };
-    // Columnas que no se muestran en la lista corta de cada columna (sí en las tarjetas, salvo el id)
-    var OCULTOS_EN_LISTA = ["id", "notas/comentarios", "notas", "comentarios"];
     var OCULTOS_SIEMPRE = ["id"];
 
     // Paleta de colores: se asignan solos, en orden
@@ -247,7 +272,11 @@
           if (p[campo]) return;   // si dos columnas significan lo mismo, se queda la primera con dato
           if (!NOMBRES_CAMPO[campo]) NOMBRES_CAMPO[campo] = col.toString().trim();
           var v = fila[col];
-          if (v instanceof Date) v = v.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+          if (v instanceof Date) {   // se guarda la fecha real (para el semáforo) y se muestra bonita
+            p._fechas = p._fechas || {};
+            p._fechas[campo] = new Date(Date.UTC(v.getUTCFullYear(), v.getUTCMonth(), v.getUTCDate()));
+            v = v.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+          }
           p[campo] = (v === null || v === undefined ? "" : v).toString().replace(/\r\n?/g, "\n").trim();
         });
         return p;
@@ -833,12 +862,109 @@
       document.getElementById("kpiClientes").textContent = distintos("cliente");
     }
 
-    // ===== 4) Proyectos: una columna por grupo, o tarjetas si hay un anillo enfocado =====
+    // ===== 4) Proyectos: un carril horizontal por grupo, o solo el del anillo enfocado =====
+
+    // --- Semáforo según la fecha final proyectada ---
+    // Rojo: la fecha final ya pasó · Amarillo: faltan "diasAviso" días o menos · Verde: faltan más días
+    // Gris: no tiene fecha final, o el proyecto ya está en una etapa de cierre (Concluido / Cerrado)
+    var ETAPAS_TERMINADAS = ["concluido", "cerrado", "terminado", "finalizado", "cancelado"];
+    var CAMPO_FIN = "fecha_fin";
+    var NOTAS = ["notas/comentarios", "notas", "comentarios", "observaciones"];
+    var ORDEN_CAMPOS = ["cliente", "etapa", "coordinador", "area", "fecha_de_inicio", "fecha_inicio", CAMPO_FIN];
+    var MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+    function semaforoActivo() { return !parametros.semaforo || parametros.semaforo.activo !== false; }
+    function diasAviso() {
+      var d = parametros.semaforo && parseInt(parametros.semaforo.diasAviso, 10);
+      return d >= 0 ? d : 7;
+    }
+
+    // Lee una fecha del Excel: fecha real de Excel, 31/12/2026, 2026-12-31 o "31 dic 2026"
+    function leerFecha(p, campo) {
+      if (p._fechas && p._fechas[campo]) return p._fechas[campo];
+      var t = normalizar(p[campo] || "").replace(/_/g, " ").replace(/\./g, "");
+      var m;
+      if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return new Date(Date.UTC(+m[1], m[2] - 1, +m[3]));
+      if ((m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/))) return new Date(Date.UTC(m[3] < 100 ? 2000 + +m[3] : +m[3], m[2] - 1, +m[1]));
+      if ((m = t.match(/^(\d{1,2}) (?:de )?([a-z]{3})[a-z]* (?:de )?(\d{4})$/)) && MESES.indexOf(m[2]) !== -1) return new Date(Date.UTC(+m[3], MESES.indexOf(m[2]), +m[1]));
+      if ((m = t.match(/^(\d{5})$/))) return new Date(Date.UTC(1899, 11, 30) + m[1] * 864e5);   // número de serie de Excel
+      return null;
+    }
+
+    function semaforoDe(p) {
+      if (ETAPAS_TERMINADAS.indexOf(normalizar(p.etapa || "")) !== -1) return { color: "gris", texto: "Terminado", orden: 3 };
+      var fin = leerFecha(p, CAMPO_FIN);
+      if (!fin) return { color: "gris", texto: "Sin fecha final", orden: 4 };
+      var hoy = new Date();
+      var dias = Math.round((fin - Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())) / 864e5);
+      function d(n) { return n + (n === 1 ? " día" : " días"); }
+      if (dias < 0) return { color: "rojo", texto: "Vencido hace " + d(-dias), orden: 0, dias: dias };
+      if (dias === 0) return { color: "amarillo", texto: "Vence hoy", orden: 1, dias: 0 };
+      if (dias <= diasAviso()) return { color: "amarillo", texto: "Vence en " + d(dias), orden: 1, dias: dias };
+      return { color: "verde", texto: "Faltan " + d(dias), orden: 2, dias: dias };
+    }
+
+    // Con semáforo, primero lo más urgente (vencidos, por vencer, en tiempo, sin fecha)
+    function ordenarPorUrgencia(lista) {
+      if (!semaforoActivo()) return lista;
+      return lista.map(function (p, i) { return { p: p, s: semaforoDe(p), i: i }; })
+        .sort(function (a, b) {
+          return a.s.orden - b.s.orden || (a.s.dias || 0) - (b.s.dias || 0) || a.i - b.i;
+        })
+        .map(function (x) { return x.p; });
+    }
+
+    function nuevo(tag, clase, texto) {
+      var e = document.createElement(tag);
+      if (clase) e.className = clase;
+      if (texto !== undefined) e.textContent = texto;
+      return e;
+    }
+
+    // Contadores del semáforo de un grupo: ● 2  ● 1  ● 3
+    function resumenSemaforo(lista) {
+      var caja = nuevo("div", "resumen-semaforo");
+      if (!semaforoActivo()) return caja;
+      var cuenta = { rojo: 0, amarillo: 0, verde: 0, gris: 0 };
+      lista.forEach(function (p) { cuenta[semaforoDe(p).color]++; });
+      [["rojo", "vencidos"], ["amarillo", "por vencer"], ["verde", "en tiempo"], ["gris", "sin fecha o terminados"]].forEach(function (c) {
+        if (!cuenta[c[0]]) return;
+        var s = nuevo("span", "cuenta " + c[0]);
+        s.title = cuenta[c[0]] + " " + c[1];
+        s.appendChild(nuevo("i"));
+        s.appendChild(document.createTextNode(cuenta[c[0]]));
+        caja.appendChild(s);
+      });
+      return caja;
+    }
+
+    function dibujarLeyenda() {
+      var ley = document.getElementById("leyendaSemaforo");
+      ley.style.display = semaforoActivo() && proyectos.length ? "" : "none";
+      var n = diasAviso();
+      ley.innerHTML = "";
+      ley.appendChild(nuevo("b", "", "Semáforo (fecha final):"));
+      [["rojo", "Vencido"], ["amarillo", "Vence en " + n + (n === 1 ? " día" : " días") + " o menos"],
+       ["verde", "En tiempo"], ["gris", "Sin fecha o terminado"]].forEach(function (c) {
+        var s = nuevo("span", "item " + c[0]);
+        s.appendChild(nuevo("i"));
+        s.appendChild(document.createTextNode(c[1]));
+        ley.appendChild(s);
+      });
+    }
+
+    function rejillaTarjetas(lista, color) {
+      var rejilla = nuevo("div", "rejilla-tarjetas");
+      ordenarPorUrgencia(lista).forEach(function (p, i) { rejilla.appendChild(tarjeta(p, color, i)); });
+      return rejilla;
+    }
+
     function dibujarListas(grupos) {
       var listas = document.getElementById("listas");
       var titulo = document.getElementById("tituloTarjetas");
       listas.innerHTML = "";
       listas.classList.remove("desvanecer");
+      dibujarLeyenda();
 
       var elegido = estado.seleccionado && grupos.filter(function (g) { return g.nombre === estado.seleccionado; })[0];
       listas.classList.toggle("tarjetas", !!elegido);
@@ -848,65 +974,74 @@
         titulo.style.setProperty("--color", elegido.color);
         if (!elegido.proyectos.length) {
           listas.innerHTML = '<div class="sin-proyectos">Este anillo todavía no tiene proyectos.</div>';
+          return;
         }
-        elegido.proyectos.forEach(function (p, i) { listas.appendChild(tarjeta(p, elegido.color, i)); });
+        listas.appendChild(rejillaTarjetas(elegido.proyectos, elegido.color));
         return;
       }
 
-      grupos.forEach(function (g) {
-        var columna = document.createElement("div");
-        columna.className = "columna";
-        var titulo = document.createElement("h2");
-        titulo.style.background = g.color;
-        var tNombre = document.createElement("span");
-        tNombre.textContent = g.nombre;
-        var tNum = document.createElement("span");
-        tNum.className = "num";
-        tNum.textContent = g.proyectos.length;
-        titulo.appendChild(tNombre);
-        titulo.appendChild(tNum);
-        columna.appendChild(titulo);
-
-        var ul = document.createElement("ul");
-        if (g.proyectos.length === 0) ul.innerHTML = '<li class="vacio">Sin proyectos</li>';
-        g.proyectos.forEach(function (p) {
-          var item = document.createElement("li");
-          var nombre = document.createElement("div");
-          nombre.textContent = p.nombre;
-          var detalle = document.createElement("div");
-          detalle.className = "detalle";
-          detalle.textContent = Object.keys(p)
-            .filter(function (c) { return c !== "nombre" && c !== estado.agruparPor && OCULTOS_EN_LISTA.indexOf(c) === -1; })
-            .map(function (c) { return p[c]; }).filter(Boolean).join(" · ");
-          item.appendChild(nombre);
-          item.appendChild(detalle);
-          ul.appendChild(item);
-        });
-        columna.appendChild(ul);
-        listas.appendChild(columna);
+      // Vista general: un carril (fila horizontal) por cada grupo, en el mismo orden que el embudo
+      grupos.forEach(function (g, gi) {
+        var carril = nuevo("section", "carril");
+        carril.style.setProperty("--color", g.color);
+        carril.style.setProperty("--i", gi);
+        var cabeza = nuevo("header", "carril-cabeza");
+        cabeza.appendChild(nuevo("h2", "", g.nombre));
+        cabeza.appendChild(nuevo("span", "num", g.proyectos.length + " proyecto" + (g.proyectos.length === 1 ? "" : "s") +
+          " · " + porcentaje(g) + "%"));
+        cabeza.appendChild(resumenSemaforo(g.proyectos));
+        carril.appendChild(cabeza);
+        carril.appendChild(g.proyectos.length ? rejillaTarjetas(g.proyectos, g.color) : nuevo("div", "carril-vacio", "Sin proyectos"));
+        listas.appendChild(carril);
       });
     }
 
-    // Tarjeta de un proyecto: su nombre y cada dato del Excel con su encabezado
+    function nombreCampo(c) {
+      return c === "etapa" ? "Etapa" : c === "coordinador" ? "Coordinador" : (NOMBRES_CAMPO[c] || c);
+    }
+
+    // Tarjeta de un proyecto: folio y semáforo arriba, nombre, datos alineados y notas plegables
     function tarjeta(p, color, i) {
-      var t = document.createElement("article");
-      t.className = "tarjeta";
+      var t = nuevo("article", "tarjeta");
       t.style.setProperty("--color", color);
-      t.style.setProperty("--i", i);
-      var h = document.createElement("h3");
-      h.textContent = p.nombre;
-      t.appendChild(h);
-      var dl = document.createElement("dl");
-      Object.keys(p).forEach(function (c) {
-        if (c === "nombre" || c === estado.agruparPor || !p[c] || OCULTOS_SIEMPRE.indexOf(c) !== -1) return;
-        var dt = document.createElement("dt");
-        dt.textContent = c === "etapa" ? "Etapa" : c === "coordinador" ? "Coordinador" : (NOMBRES_CAMPO[c] || c);
-        var dd = document.createElement("dd");
-        dd.textContent = p[c];
-        dl.appendChild(dt);
-        dl.appendChild(dd);
+      t.style.setProperty("--i", Math.min(i, 12));
+
+      var cabeza = nuevo("div", "tarjeta-cabeza");
+      cabeza.appendChild(nuevo("span", "folio", p.folio || ""));
+      if (semaforoActivo()) {
+        var s = semaforoDe(p);
+        var luz = nuevo("span", "semaforo " + s.color);
+        luz.appendChild(nuevo("i"));
+        luz.appendChild(document.createTextNode(s.texto));
+        cabeza.appendChild(luz);
+      }
+      t.appendChild(cabeza);
+      t.appendChild(nuevo("h3", "", p.nombre));
+
+      // Datos: primero los importantes en orden fijo, luego el resto de columnas del Excel
+      var nota = NOTAS.filter(function (c) { return p[c]; })[0];
+      var campos = Object.keys(p).filter(function (c) {
+        return c.charAt(0) !== "_" && p[c] && c !== "nombre" && c !== "folio" && c !== estado.agruparPor &&
+          NOTAS.indexOf(c) === -1 && OCULTOS_SIEMPRE.indexOf(c) === -1 && !(c === "semaforo" && semaforoActivo());
+      }).sort(function (a, b) {
+        var ia = ORDEN_CAMPOS.indexOf(a), ib = ORDEN_CAMPOS.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
       });
-      t.appendChild(dl);
+      if (campos.length) {
+        var dl = nuevo("dl", "datos");
+        campos.forEach(function (c) {
+          dl.appendChild(nuevo("dt", "", nombreCampo(c)));
+          dl.appendChild(nuevo("dd", "", p[c]));
+        });
+        t.appendChild(dl);
+      }
+      if (nota) {
+        var det = nuevo("details", "notas");
+        var lineas = p[nota].split("\n").filter(Boolean).length;
+        det.appendChild(nuevo("summary", "", nombreCampo(nota) + (lineas > 1 ? " (" + lineas + " líneas)" : "")));
+        det.appendChild(nuevo("div", "texto-notas", p[nota]));
+        t.appendChild(det);
+      }
       return t;
     }
 
@@ -932,6 +1067,19 @@
         document.documentElement.setAttribute("data-tema", tema);
         try { localStorage.setItem("embudo_tema", tema); } catch (e) {}
       };
+      // Semáforo: se prende o apaga y se cambian los días de aviso (se guarda en parametros.json)
+      var interSem = document.getElementById("interruptorSemaforo");
+      var inputDias = document.getElementById("diasAviso");
+      function cambiarSemaforo() {
+        var dias = parseInt(inputDias.value, 10);
+        parametros.semaforo = { activo: interSem.checked, diasAviso: dias >= 1 ? Math.min(dias, 90) : 7 };
+        inputDias.value = parametros.semaforo.diasAviso;
+        inputDias.disabled = !interSem.checked;
+        dibujarListas(ultimoGrupos);
+      }
+      interSem.onchange = cambiarSemaforo;
+      inputDias.onchange = cambiarSemaforo;
+
       document.getElementById("abrirParametros").onclick = function () {
         mensaje("");
         mostrarZonaToken();
@@ -986,6 +1134,9 @@
     }
 
     function dibujarPanel() {
+      document.getElementById("interruptorSemaforo").checked = semaforoActivo();
+      document.getElementById("diasAviso").value = diasAviso();
+      document.getElementById("diasAviso").disabled = !semaforoActivo();
       dibujarListaParam("etapas", "listaEtapas", true);
       dibujarListaParam("coordinadores", "listaCoordinadores", false);
       dibujarFaltantes("etapas", "etapa", "faltanEtapas");
@@ -1064,11 +1215,12 @@
         var fila = {};
         columnas.forEach(function (c) {
           var v = p[c] || "";
+          if (p._fechas && p._fechas[c]) { fila[NOMBRES_CAMPO[c]] = p._fechas[c]; return; }   // fechas siguen siendo fechas
           fila[NOMBRES_CAMPO[c]] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v;   // los números vuelven a ser números
         });
         return fila;
       });
-      var hoja = XLSX.utils.json_to_sheet(filas, { header: columnas.map(function (c) { return NOMBRES_CAMPO[c]; }) });
+      var hoja = XLSX.utils.json_to_sheet(filas, { dateNF: "dd/mm/yyyy", header: columnas.map(function (c) { return NOMBRES_CAMPO[c]; }) });
       hoja["!cols"] = columnas.map(function (c) {
         var largo = NOMBRES_CAMPO[c].length;
         proyectos.forEach(function (p) { largo = Math.max(largo, Math.min(60, (p[c] || "").split("\n")[0].length)); });
