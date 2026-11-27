@@ -25,7 +25,7 @@
       <div class="marca"><img src="logos/consultiva-blanco.png" alt="Consultiva"></div>
       <div class="textos">
         <h1 id="titulo">Embudo de Proyectos</h1>
-        <p>Estatus de los proyectos por etapa, coordinador y área</p>
+        <p>Estatus de los proyectos por etapa, coordinador y cliente</p>
       </div>
       <div class="meta" id="actualizado"></div>
     </div>
@@ -38,7 +38,7 @@
       <div class="indicador"><div class="valor" id="kpiProyectos">–</div><div class="etiqueta">Proyectos</div></div>
       <div class="indicador"><div class="valor" id="kpiEtapas">–</div><div class="etiqueta">Etapas</div></div>
       <div class="indicador"><div class="valor" id="kpiCoordinadores">–</div><div class="etiqueta">Coordinadores</div></div>
-      <div class="indicador"><div class="valor" id="kpiAreas">–</div><div class="etiqueta">Áreas</div></div>
+      <div class="indicador"><div class="valor" id="kpiClientes">–</div><div class="etiqueta">Clientes</div></div>
     </div>
 
     <!-- Botones para elegir cómo agrupar, en qué orden, y abrir Parámetros -->
@@ -81,7 +81,7 @@
   <div class="fondo-panel" id="fondoPanel">
     <div class="panel">
       <h2>Parámetros</h2>
-      <p class="sub">Agrega, quita u ordena las etapas y los coordinadores. Los cambios se ven en el embudo al momento. Los colores se asignan solos.</p>
+      <p class="sub">Agrega, quita u ordena las etapas y los coordinadores, o carga un Excel nuevo de proyectos. Los cambios se ven en el embudo al momento. Los colores se asignan solos.</p>
 
       <div class="tema-fila">
         <div>
@@ -93,6 +93,20 @@
           <span class="pista"></span>
         </label>
       </div>
+
+      <!-- Importar / exportar el Excel de proyectos -->
+      <div class="datos-fila">
+        <div>
+          <div class="titulo-tema">Datos de proyectos (Excel)</div>
+          <div class="nota-tema" id="infoDatos">Descarga el Excel actual o sube uno nuevo para reemplazar los proyectos.</div>
+        </div>
+        <div class="datos-botones">
+          <button class="secundario" id="exportarExcel">⬇ Exportar Excel</button>
+          <button class="secundario" id="importarExcel">⬆ Importar Excel</button>
+          <input type="file" id="archivoExcel" accept=".xlsx,.xls" hidden>
+        </div>
+      </div>
+      <div class="aviso-importado" id="avisoImportado"></div>
 
       <div class="panel-columnas">
         <div>
@@ -146,8 +160,20 @@
     var AGRUPAR_POR = [
       { campo: "etapa",       titulo: "Etapa",       lista: "etapas",        ordenFijo: true },
       { campo: "coordinador", titulo: "Coordinador", lista: "coordinadores", ordenFijo: false },
-      { campo: "area",        titulo: "Área",        lista: null,            ordenFijo: false }   // sale directo del Excel
+      { campo: "cliente",     titulo: "Cliente",     lista: null,            ordenFijo: false },  // sale directo del Excel
+      { campo: "area",        titulo: "Área",        lista: null,            ordenFijo: false }   // solo aparece si el Excel trae Área
     ];
+
+    // Encabezados del Excel que significan lo mismo que un campo de la página
+    // (se comparan sin acentos ni mayúsculas, con "_" en lugar de espacios)
+    var SINONIMOS = {
+      proyecto: "nombre", nombre_de_proyecto: "nombre", nombre_del_proyecto: "nombre",
+      estatus: "etapa", status: "etapa", fase: "etapa",
+      responsable: "coordinador"
+    };
+    // Columnas que no se muestran en la lista corta de cada columna (sí en las tarjetas, salvo el id)
+    var OCULTOS_EN_LISTA = ["id", "notas/comentarios", "notas", "comentarios"];
+    var OCULTOS_SIEMPRE = ["id"];
 
     // Paleta de colores: se asignan solos, en orden
     var PALETA = ["#5B8DEF", "#7A6FE0", "#E0A030", "#E07040", "#3BA272", "#D45087", "#2CA6B0", "#8C6D46", "#6B7A8F", "#B85FC2"];
@@ -199,9 +225,10 @@
         var f = r.headers.get("Last-Modified");
         if (f) textoFecha = "Datos actualizados el " + fechaBonita(new Date(f));
         return r.arrayBuffer();
-      }).then(function (bytes) { return leerExcel(XLSX.read(bytes, { type: "array" })); });
+      }).then(function (bytes) { bytesExcel = bytes; return leerExcel(XLSX.read(bytes, { type: "array", cellDates: true })); });
     }
 
+    var bytesExcel = null;   // el archivo tal cual se leyó (para guardarlo si se importó)
     function leerExcel(libro) {
       var hoja = libro.Sheets[PESTANA_PROYECTOS] || libro.Sheets[libro.SheetNames[0]];
       return limpiarFilas(XLSX.utils.sheet_to_json(hoja, { defval: "" }));
@@ -210,14 +237,18 @@
     // Convierte cada fila (encabezado: valor) en un proyecto con nombres de campo sencillos
     var NOMBRES_CAMPO = {};   // "area" -> "Área" (el encabezado tal cual viene en el Excel)
     function limpiarFilas(filas) {
+      NOMBRES_CAMPO = {};
       return filas.map(function (fila) {
         var p = {};
         Object.keys(fila).forEach(function (col) {
           if (col.charAt(0) === "@" || col === "ItemInternalId") return;   // columnas internas de Excel Online
           var campo = normalizar(col);
-          if (campo === "proyecto") campo = "nombre";
+          if (SINONIMOS[campo]) campo = SINONIMOS[campo];
+          if (p[campo]) return;   // si dos columnas significan lo mismo, se queda la primera con dato
           if (!NOMBRES_CAMPO[campo]) NOMBRES_CAMPO[campo] = col.toString().trim();
-          p[campo] = (fila[col] === null || fila[col] === undefined ? "" : fila[col]).toString().trim();
+          var v = fila[col];
+          if (v instanceof Date) v = v.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+          p[campo] = (v === null || v === undefined ? "" : v).toString().replace(/\r\n?/g, "\n").trim();
         });
         return p;
       }).filter(function (p) { return p.nombre; });   // ignora filas vacías
@@ -227,14 +258,6 @@
       document.getElementById("actualizado").textContent = textoFecha;
       actualizarIndicadores();
 
-      var cont = document.getElementById("botonesAgrupar");
-      AGRUPAR_POR.forEach(function (op) {
-        var b = document.createElement("button");
-        b.textContent = op.titulo;
-        b.dataset.campo = op.campo;
-        b.onclick = function () { estado.agruparPor = op.campo; estado.seleccionado = null; dibujarTodo(); };
-        cont.appendChild(b);
-      });
       document.querySelectorAll("#botonesOrden button").forEach(function (b) {
         b.onclick = function () { estado.orden = b.dataset.orden; estado.seleccionado = null; dibujarTodo(); };
       });
@@ -287,7 +310,29 @@
       return grupos;
     }
 
+    // Opciones de "Agrupar por" que tienen datos: Etapa y Coordinador siempre; Cliente / Área si el Excel las trae
+    function opcionesAgrupar() {
+      return AGRUPAR_POR.filter(function (o) {
+        return o.lista || proyectos.some(function (p) { return p[o.campo]; });
+      });
+    }
+
+    function dibujarBotonesAgrupar() {
+      var opciones = opcionesAgrupar();
+      if (!opciones.some(function (o) { return o.campo === estado.agruparPor; })) estado.agruparPor = "etapa";
+      var cont = document.getElementById("botonesAgrupar");
+      cont.innerHTML = "";
+      opciones.forEach(function (op) {
+        var b = document.createElement("button");
+        b.textContent = op.titulo;
+        b.dataset.campo = op.campo;
+        b.onclick = function () { estado.agruparPor = op.campo; estado.seleccionado = null; dibujarTodo(); };
+        cont.appendChild(b);
+      });
+    }
+
     function dibujarTodo() {
+      dibujarBotonesAgrupar();
       document.querySelectorAll("#botonesAgrupar button").forEach(function (b) {
         b.classList.toggle("activo", b.dataset.campo === estado.agruparPor);
       });
@@ -432,7 +477,7 @@
     // Al enfocarlo, el anillo gira hasta verse desde arriba y su superficie se vuelve un pie con grosor.
     // Sus rebanadas reparten los proyectos por otro campo (por ejemplo, por Coordinador).
     function camposReparto() {
-      return AGRUPAR_POR.filter(function (o) { return o.campo !== estado.agruparPor; });
+      return opcionesAgrupar().filter(function (o) { return o.campo !== estado.agruparPor; });
     }
     function campoPie() {
       var otros = camposReparto();
@@ -766,7 +811,7 @@
       document.getElementById("kpiProyectos").textContent = proyectos.length;
       document.getElementById("kpiEtapas").textContent = parametros.etapas.length;
       document.getElementById("kpiCoordinadores").textContent = parametros.coordinadores.length;
-      document.getElementById("kpiAreas").textContent = distintos("area");
+      document.getElementById("kpiClientes").textContent = distintos("cliente");
     }
 
     // ===== 4) Proyectos: una columna por grupo, o tarjetas si hay un anillo enfocado =====
@@ -812,7 +857,7 @@
           var detalle = document.createElement("div");
           detalle.className = "detalle";
           detalle.textContent = Object.keys(p)
-            .filter(function (c) { return c !== "nombre" && c !== estado.agruparPor; })
+            .filter(function (c) { return c !== "nombre" && c !== estado.agruparPor && OCULTOS_EN_LISTA.indexOf(c) === -1; })
             .map(function (c) { return p[c]; }).filter(Boolean).join(" · ");
           item.appendChild(nombre);
           item.appendChild(detalle);
@@ -834,9 +879,9 @@
       t.appendChild(h);
       var dl = document.createElement("dl");
       Object.keys(p).forEach(function (c) {
-        if (c === "nombre" || c === estado.agruparPor || !p[c]) return;
+        if (c === "nombre" || c === estado.agruparPor || !p[c] || OCULTOS_SIEMPRE.indexOf(c) !== -1) return;
         var dt = document.createElement("dt");
-        dt.textContent = NOMBRES_CAMPO[c] || c;
+        dt.textContent = c === "etapa" ? "Etapa" : c === "coordinador" ? "Coordinador" : (NOMBRES_CAMPO[c] || c);
         var dd = document.createElement("dd");
         dd.textContent = p[c];
         dl.appendChild(dt);
@@ -871,6 +916,7 @@
       document.getElementById("abrirParametros").onclick = function () {
         mensaje("");
         mostrarZonaToken();
+        dibujarAvisoImportado();
         dibujarPanel();
         fondo.classList.add("abierto");
       };
@@ -887,10 +933,18 @@
 
       document.getElementById("descartar").onclick = function () {
         parametros = copiar(parametrosGuardados);
+        if (importado) {
+          proyectos = importado.antes.proyectos; NOMBRES_CAMPO = importado.antes.nombres; bytesExcel = importado.antes.bytes;
+          importado = null; estado.seleccionado = null; dibujarAvisoImportado();
+        }
         dibujarPanel(); dibujarTodo();
         mensaje("Cambios descartados.");
       };
       document.getElementById("guardar").onclick = guardar;
+      document.getElementById("exportarExcel").onclick = exportarExcel;
+      var archivo = document.getElementById("archivoExcel");
+      document.getElementById("importarExcel").onclick = function () { archivo.value = ""; archivo.click(); };
+      archivo.onchange = function () { if (archivo.files[0]) importarExcel(archivo.files[0]); };
       document.getElementById("olvidarToken").onclick = function (e) {
         e.preventDefault(); escribirToken(""); mostrarZonaToken();
       };
@@ -981,38 +1035,127 @@
       caja.appendChild(div);
     }
 
-    // Guarda parametros.json en GitHub para que todos vean los cambios
-    function guardar() {
-      var token = leerToken() || document.getElementById("token").value.trim();
-      if (!token) { mensaje("Pega tu clave de GitHub para poder guardar.", "mal"); return; }
+    // ===== 6) Importar y exportar el Excel de proyectos =====
+    var importado = null;   // { archivo, antes: {proyectos, nombres, bytes} } mientras no se guarde
 
-      var url = "https://api.github.com/repos/" + REPO + "/contents/" + ARCHIVO_PARAMETROS;
+    // Descarga los proyectos que se ven ahora como un archivo de Excel
+    function exportarExcel() {
+      var columnas = Object.keys(NOMBRES_CAMPO);
+      var filas = proyectos.map(function (p) {
+        var fila = {};
+        columnas.forEach(function (c) {
+          var v = p[c] || "";
+          fila[NOMBRES_CAMPO[c]] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v;   // los números vuelven a ser números
+        });
+        return fila;
+      });
+      var hoja = XLSX.utils.json_to_sheet(filas, { header: columnas.map(function (c) { return NOMBRES_CAMPO[c]; }) });
+      hoja["!cols"] = columnas.map(function (c) {
+        var largo = NOMBRES_CAMPO[c].length;
+        proyectos.forEach(function (p) { largo = Math.max(largo, Math.min(60, (p[c] || "").split("\n")[0].length)); });
+        return { wch: largo + 2 };
+      });
+      var libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, hoja, PESTANA_PROYECTOS);
+      var hoy = new Date();
+      var fecha = hoy.getFullYear() + "-" + ("0" + (hoy.getMonth() + 1)).slice(-2) + "-" + ("0" + hoy.getDate()).slice(-2);
+      XLSX.writeFile(libro, "proyectos-" + fecha + ".xlsx");
+      mensaje("Se descargó el Excel con " + proyectos.length + " proyectos.", "ok");
+    }
+
+    // Lee un Excel elegido en la computadora y lo muestra en el embudo (todavía sin guardar)
+    function importarExcel(archivo) {
+      mensaje("Leyendo " + archivo.name + "…");
+      var lector = new FileReader();
+      lector.onload = function () {
+        var bytes = new Uint8Array(lector.result), lista, nombres;
+        try {
+          var antesNombres = NOMBRES_CAMPO;
+          lista = leerExcel(XLSX.read(bytes, { type: "array", cellDates: true }));
+          nombres = NOMBRES_CAMPO;
+          NOMBRES_CAMPO = antesNombres;
+        } catch (e) {
+          mensaje("No se pudo leer ese archivo. ¿Es un Excel (.xlsx)?", "mal"); return;
+        }
+        if (!nombres.nombre) {
+          mensaje('El Excel no tiene la columna del nombre del proyecto ("Nombre de Proyecto" o "Proyecto").', "mal"); return;
+        }
+        if (!lista.length) { mensaje("El Excel no tiene proyectos (todas las filas están vacías).", "mal"); return; }
+        if (!importado) importado = { antes: { proyectos: proyectos, nombres: NOMBRES_CAMPO, bytes: bytesExcel } };
+        importado.archivo = archivo.name;
+        proyectos = lista; NOMBRES_CAMPO = nombres; bytesExcel = bytes;
+        estado.seleccionado = null;
+        dibujarAvisoImportado(); dibujarPanel(); dibujarTodo();
+        mensaje("Se cargaron " + lista.length + " proyectos. Revisa el embudo y presiona «Guardar para todos».", "ok");
+      };
+      lector.onerror = function () { mensaje("No se pudo abrir el archivo.", "mal"); };
+      lector.readAsArrayBuffer(archivo);
+    }
+
+    function dibujarAvisoImportado() {
+      var aviso = document.getElementById("avisoImportado");
+      aviso.style.display = importado ? "block" : "none";
+      aviso.textContent = importado
+        ? "Archivo cargado: " + importado.archivo + " (" + proyectos.length + " proyectos). Solo tú lo ves por ahora: " +
+          "presiona «Guardar para todos» para que reemplace los datos de la página, o «Descartar cambios» para volver atrás."
+        : "";
+    }
+
+    // Convierte bytes a texto base64 (lo que pide GitHub para subir un archivo)
+    function aBase64(bytes) {
+      var texto = "", trozo = 0x8000;
+      for (var i = 0; i < bytes.length; i += trozo) texto += String.fromCharCode.apply(null, bytes.subarray(i, i + trozo));
+      return btoa(texto);
+    }
+
+    // Sube (o reemplaza) un archivo del repositorio con la API de GitHub
+    function subirArchivo(token, ruta, base64, mensajeCommit) {
+      var url = "https://api.github.com/repos/" + REPO + "/contents/" + ruta;
       var cabeceras = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" };
-      var contenido = JSON.stringify(parametros, null, 2) + "\n";
-      var base64 = btoa(unescape(encodeURIComponent(contenido)));
-      mensaje("Guardando…");
-
-      fetch(url, { headers: cabeceras, cache: "no-store" })
+      return fetch(url, { headers: cabeceras, cache: "no-store" })
         .then(function (r) {
           if (r.status === 401) throw new Error("La clave no es válida.");
+          if (r.status === 404) return {};   // el archivo aún no existe: se crea
           if (!r.ok) throw new Error("No se pudo leer el archivo actual (error " + r.status + ").");
           return r.json();
         })
         .then(function (actual) {
-          return fetch(url, {
-            method: "PUT",
-            headers: cabeceras,
-            body: JSON.stringify({ message: "Actualizar parámetros desde la página", content: base64, sha: actual.sha })
-          });
+          var cuerpo = { message: mensajeCommit, content: base64 };
+          if (actual.sha) cuerpo.sha = actual.sha;
+          return fetch(url, { method: "PUT", headers: cabeceras, body: JSON.stringify(cuerpo) });
         })
         .then(function (r) {
           if (r.status === 401) throw new Error("La clave no es válida.");
           if (r.status === 403 || r.status === 404) throw new Error("La clave no tiene permiso para guardar en este repositorio.");
-          if (!r.ok) throw new Error("No se pudo guardar (error " + r.status + ").");
+          if (!r.ok) throw new Error("No se pudo guardar " + ruta + " (error " + r.status + ").");
+        });
+    }
+
+    // Guarda en GitHub el Excel importado (si hay) y parametros.json, para que todos vean los cambios
+    function guardar() {
+      var token = leerToken() || document.getElementById("token").value.trim();
+      if (!token) { mensaje("Pega tu clave de GitHub para poder guardar.", "mal"); return; }
+
+      var contenido = JSON.stringify(parametros, null, 2) + "\n";
+      var base64 = btoa(unescape(encodeURIComponent(contenido)));
+      mensaje("Guardando…");
+
+      var pasoExcel = importado
+        ? subirArchivo(token, ARCHIVO_EXCEL, aBase64(bytesExcel), "Importar Excel de proyectos desde la página (" + importado.archivo + ")")
+        : Promise.resolve();
+      pasoExcel
+        .then(function () { return subirArchivo(token, ARCHIVO_PARAMETROS, base64, "Actualizar parámetros desde la página"); })
+        .then(function () {
           escribirToken(token);
           document.getElementById("token").value = "";
           mostrarZonaToken();
           parametrosGuardados = copiar(parametros);
+          if (importado) {
+            importado = null;
+            textoFecha = "Datos actualizados el " + fechaBonita(new Date());
+            document.getElementById("actualizado").textContent = textoFecha;
+          }
+          dibujarAvisoImportado();
           mensaje("¡Guardado! Los demás lo verán en 1 o 2 minutos.", "ok");
         })
         .catch(function (e) { mensaje(e.message, "mal"); });

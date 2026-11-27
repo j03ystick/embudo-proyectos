@@ -461,3 +461,37 @@ kbd {
   .mini-indicadores { grid-template-columns: repeat(3, 1fr); }
   .mini .valor { font-size: 18px; }
 }
+
+/* Importar / exportar el Excel de proyectos (panel de Parámetros) */
+.datos-fila {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--tarjeta-suave);
+  margin-bottom: 18px;
+}
+.datos-fila .titulo-tema { font-weight: 600; font-size: 15px; }
+.datos-fila .nota-tema { font-size: 13px; color: var(--texto-suave); }
+.datos-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+.datos-botones button {
+  border: 1px solid var(--borde);
+  background: var(--tarjeta);
+  color: var(--texto);
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-family: inherit; font-size: 14px;
+}
+.datos-botones button:hover { background: var(--fondo); }
+.aviso-importado {
+  display: none;
+  margin: -8px 0 18px;
+  font-size: 13px;
+  background: rgba(224,160,48,.12);
+  border: 1px solid rgba(224,160,48,.45);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.tarjeta dd { white-space: pre-line; }
