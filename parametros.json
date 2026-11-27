@@ -1,12 +1,16 @@
 {
   "etapas": [
-    "Idea",
-    "Evaluación",
-    "Aprobado",
-    "En ejecución",
+    "No Iniciado",
+    "Iniciado",
+    "Por Confirmar",
+    "Concluido",
     "Cerrado"
   ],
   "coordinadores": [
-    "Ana López"
+    "Angeles Sanchez",
+    "Fernanda Hernandez",
+    "Gabriela Cabezas",
+    "Joseph Huesca",
+    "POR ASIGNAR"
   ]
 }
