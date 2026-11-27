@@ -331,6 +331,24 @@
       });
     }
 
+    // Escribe el Estatus y el Responsable de cada proyecto tal como están en Parámetros,
+    // aunque en el Excel vengan con otras mayúsculas o sin acentos ("no iniciado" -> "No Iniciado").
+    // Un proyecto sin responsable queda en "POR ASIGNAR" (si esa opción existe en Parámetros).
+    function ajustarAParametros() {
+      [["etapa", "etapas"], ["coordinador", "coordinadores"]].forEach(function (par) {
+        var campo = par[0], lista = parametros[par[1]];
+        proyectos.forEach(function (p) {
+          var v = normalizar(p[campo] || "");
+          var igual = lista.filter(function (x) { return normalizar(x) === v; })[0];
+          if (igual) { p[campo] = igual; return; }
+          if (!v && campo === "coordinador") {
+            var porAsignar = lista.filter(function (x) { return normalizar(x) === "por_asignar"; })[0];
+            if (porAsignar) p[campo] = porAsignar;
+          }
+        });
+      });
+    }
+
     function dibujarTodo() {
       dibujarBotonesAgrupar();
       document.querySelectorAll("#botonesAgrupar button").forEach(function (b) {
@@ -339,6 +357,7 @@
       document.querySelectorAll("#botonesOrden button").forEach(function (b) {
         b.classList.toggle("activo", b.dataset.orden === estado.orden);
       });
+      ajustarAParametros();
       var grupos = armarGrupos();
       // Si el anillo enfocado ya no existe (p. ej. se quitó en Parámetros), se vuelve a la vista completa
       if (estado.seleccionado && !grupos.some(function (g) { return g.nombre === estado.seleccionado; })) estado.seleccionado = null;
@@ -1057,6 +1076,14 @@
       });
       var libro = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(libro, hoja, PESTANA_PROYECTOS);
+      // Segunda pestaña con los valores válidos de Estatus y Responsable (de Parámetros), como referencia
+      var listas = [["Estatus", "Responsable"]];
+      for (var i = 0; i < Math.max(parametros.etapas.length, parametros.coordinadores.length); i++) {
+        listas.push([parametros.etapas[i] || "", parametros.coordinadores[i] || ""]);
+      }
+      var hojaListas = XLSX.utils.aoa_to_sheet(listas);
+      hojaListas["!cols"] = [{ wch: 18 }, { wch: 22 }];
+      XLSX.utils.book_append_sheet(libro, hojaListas, "Listas");
       var hoy = new Date();
       var fecha = hoy.getFullYear() + "-" + ("0" + (hoy.getMonth() + 1)).slice(-2) + "-" + ("0" + hoy.getDate()).slice(-2);
       XLSX.writeFile(libro, "proyectos-" + fecha + ".xlsx");

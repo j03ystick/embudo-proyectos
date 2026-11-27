@@ -2,7 +2,8 @@
 
 Página web que muestra el estatus de los proyectos de la compañía en forma de embudo.
 
-- `proyectos.xlsx`: **los proyectos** (pestaña Proyectos: id, Folio, Nombre de Proyecto, Cliente, Estatus, Responsable, Notas/Comentarios, Fecha de Inicio, Fecha de Fin, Semaforo). "Estatus" se usa como la etapa del embudo y "Responsable" como el coordinador. El archivo del repositorio trae datos de ejemplo.
+- `proyectos.xlsx`: **los proyectos** (pestaña Proyectos: id, Folio, Nombre de Proyecto, Cliente, Estatus, Responsable, Notas/Comentarios, Fecha de Inicio, Fecha de Fin, Semaforo). "Estatus" se usa como la etapa del embudo y "Responsable" como el coordinador. El archivo del repositorio trae datos de ejemplo. Las columnas Estatus y Responsable tienen listas desplegables (pestaña "Listas").
+- Estatus válidos: No Iniciado, Iniciado, Por Confirmar, Concluido, Cerrado. Responsables: Angeles Sanchez, Fernanda Hernandez, Gabriela Cabezas, Joseph Huesca, POR ASIGNAR (un proyecto sin responsable cuenta como POR ASIGNAR). No importan mayúsculas ni acentos.
 - `parametros.json`: etapas (en orden) y coordinadores. Se edita desde la página con el botón ⚙ Parámetros.
 - `index.html`, `styles.css`: la página y su diseño.
 - `lib/xlsx.full.min.js`: librería (SheetJS) para leer archivos de Excel.
