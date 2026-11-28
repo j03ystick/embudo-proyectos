@@ -575,3 +575,15 @@ kbd {
   border-radius: 8px;
   padding: 8px 10px;
 }
+
+/* Cuadrilla propia / partner: casilla de verificación */
+.celda-cuadrilla { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.celda-cuadrilla::before { flex-basis: 100%; }
+.casilla {
+  width: 16px; height: 16px; flex: none;
+  border: 1.5px solid var(--texto-suave);
+  border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.casilla.marcada { background: #2f9e6a; border-color: #2f9e6a; }
+.casilla.marcada::after { content: "✓"; color: #fff; font-size: 12px; font-weight: 700; line-height: 1; }
