@@ -1,0 +1,437 @@
+{
+  "C02142": {
+    "cuadrilla": [],
+    "historial": [
+      {
+        "fecha": "2026-11-28",
+        "pct": 53
+      }
+    ],
+    "plan": {
+      "archivo": "C01732-Plan-Plataformas-Z45-Z60 (1).xml",
+      "cargado": "2026-11-28",
+      "titulo": "C01732 TEZONTEPEC · Plan por plataformas Z45 → Z60",
+      "tareas": [
+        {
+          "uid": "1",
+          "nombre": "ARRANQUE",
+          "nivel": 1,
+          "inicio": "2026-11-05T08:00",
+          "fin": "2026-11-09T17:00",
+          "horas": 0,
+          "pct": 85,
+          "resumen": true,
+          "hito": false
+        },
+        {
+          "uid": "2",
+          "nombre": "Kick-off con EUM, inducción de seguridad y altas de las 2 cuadrillas",
+          "nivel": 2,
+          "inicio": "2026-11-05T08:00",
+          "fin": "2026-11-05T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "3",
+          "nombre": "Replanteo en sitio de las 15 cámaras, trayectorias y registros",
+          "nivel": 2,
+          "inicio": "2026-11-06T08:00",
+          "fin": "2026-11-06T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "4",
+          "nombre": "Canalización conduit 1\" pared gruesa para circuito de contacto eléctrico (tramos bajos con escalera de tijera, una pareja, 30–60 m/día)",
+          "nivel": 2,
+          "inicio": "2026-11-05T08:00",
+          "fin": "2026-11-09T17:00",
+          "horas": 24,
+          "pct": 70,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "5",
+          "nombre": "Alta del Seg - Cuad2 y de la Cuadrilla 2 (DC-3, IMSS, inducción EUM)",
+          "nivel": 2,
+          "inicio": "2026-11-09T08:00",
+          "fin": "2026-11-09T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "6",
+          "nombre": "HITOS (mover aquí las fechas)",
+          "nivel": 1,
+          "inicio": "2026-11-09T08:00",
+          "fin": "2026-11-26T17:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": true,
+          "hito": false
+        },
+        {
+          "uid": "7",
+          "nombre": "Fecha de estado del plan (hoy)",
+          "nivel": 2,
+          "inicio": "2026-11-09T08:00",
+          "fin": "2026-11-09T08:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": false,
+          "hito": true
+        },
+        {
+          "uid": "8",
+          "nombre": "INICIO Cuadrilla 1 (alturas)",
+          "nivel": 2,
+          "inicio": "2026-11-09T08:00",
+          "fin": "2026-11-09T08:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": false,
+          "hito": true
+        },
+        {
+          "uid": "9",
+          "nombre": "INICIO Cuadrilla 2 (piso)",
+          "nivel": 2,
+          "inicio": "2026-11-10T08:00",
+          "fin": "2026-11-10T08:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": false,
+          "hito": true
+        },
+        {
+          "uid": "10",
+          "nombre": "Plataforma Z45 en sitio (llega 9/nov en la tarde)",
+          "nivel": 2,
+          "inicio": "2026-11-10T08:00",
+          "fin": "2026-11-10T08:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": false,
+          "hito": true
+        },
+        {
+          "uid": "11",
+          "nombre": "Plataforma Z60 en sitio (solo después de que salga la Z45)",
+          "nivel": 2,
+          "inicio": "2026-11-26T08:00",
+          "fin": "2026-11-26T08:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": false,
+          "hito": true
+        },
+        {
+          "uid": "12",
+          "nombre": "FASE 1 · PLATAFORMA Z45 (15 m) · Cuadrilla 1",
+          "nivel": 1,
+          "inicio": "2026-11-09T08:00",
+          "fin": "2026-11-25T17:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": true,
+          "hito": false
+        },
+        {
+          "uid": "13",
+          "nombre": "Prefabricado de tubería, soportería y cajas; tramos centrales de los cruces cortados y prearmados para la Z60",
+          "nivel": 2,
+          "inicio": "2026-11-09T08:00",
+          "fin": "2026-11-09T17:00",
+          "horas": 8,
+          "pct": 95,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "14",
+          "nombre": "① Recepción e inspección de la Z45, prueba de alcance en cruces y fisheye; charola 66/50 por muro sur y oeste hasta el TR nuevo (96 m)",
+          "nivel": 2,
+          "inicio": "2026-11-10T08:00",
+          "fin": "2026-11-11T17:00",
+          "horas": 16,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "15",
+          "nombre": "② Zona 3: tubería en muro oeste y muro sur (CCTV08, 09, 12-15) y salida del cruce 12→11 hasta el alcance de la Z45",
+          "nivel": 2,
+          "inicio": "2026-11-12T08:00",
+          "fin": "2026-11-17T17:00",
+          "horas": 24,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "16",
+          "nombre": "③ Cable UTP de la Zona 3 hasta el gabinete del TR nuevo y montaje con vista ajustada de 6 bala (CCTV08, 09, 12, 13, 14, 15)",
+          "nivel": 2,
+          "inicio": "2026-11-18T08:00",
+          "fin": "2026-11-18T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "17",
+          "nombre": "④ Zona 2: galería hasta TR06 y tubería de CCTV06 y CCTV07",
+          "nivel": 2,
+          "inicio": "2026-11-19T08:00",
+          "fin": "2026-11-19T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "18",
+          "nombre": "⑤ Zona 1: muro norte (CCTV01-02), galería hacia TR04 y las 2 salidas del cruce 03→05 hasta el alcance de la Z45",
+          "nivel": 2,
+          "inicio": "2026-11-20T08:00",
+          "fin": "2026-11-23T17:00",
+          "horas": 16,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "19",
+          "nombre": "⑥ Cable UTP y montaje con vista de CCTV01, 02, 03 y 07; cable de CCTV06; la pareja de piso de la Cuadrilla 1 termina en TR04 y TR06",
+          "nivel": 2,
+          "inicio": "2026-11-24T08:00",
+          "fin": "2026-11-24T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "20",
+          "nombre": "⑦ Jalado de cable eléctrico 3 x cal. 8 (tablero → TR nuevo, 285 m) y fibra OM4 (TR07 → TR nuevo, 175 m)",
+          "nivel": 2,
+          "inicio": "2026-11-25T08:00",
+          "fin": "2026-11-25T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "21",
+          "nombre": "SALE PLATAFORMA Z45 (liberación: extremos de cruces con guía, 10 bala con vista, nada pendiente a su alcance)",
+          "nivel": 2,
+          "inicio": "2026-11-25T17:00",
+          "fin": "2026-11-25T17:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": false,
+          "hito": true
+        },
+        {
+          "uid": "22",
+          "nombre": "FASE 2 · PLATAFORMA Z60 · Cuadrilla 1",
+          "nivel": 1,
+          "inicio": "2026-11-26T08:00",
+          "fin": "2026-11-27T17:00",
+          "horas": 0,
+          "pct": 100,
+          "resumen": true,
+          "hito": false
+        },
+        {
+          "uid": "23",
+          "nombre": "⑧ Tramos centrales de los cruces Z1 (04-05, ≈ 18 m) y Z3 (11-10, ≈ 20 m) con cajas de fisheye; cable UTP de CCTV03, 04, 05, 10 y 11",
+          "nivel": 2,
+          "inicio": "2026-11-26T08:00",
+          "fin": "2026-11-26T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "24",
+          "nombre": "⑨ Montaje, conexión y vista de 5 fisheye (CCTV04, 05, 06, 10, 11) y conexión de CCTV03",
+          "nivel": 2,
+          "inicio": "2026-11-27T08:00",
+          "fin": "2026-11-27T17:00",
+          "horas": 8,
+          "pct": 100,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "25",
+          "nombre": "SALE PLATAFORMA Z60 y CUADRILLA 1",
+          "nivel": 2,
+          "inicio": "2026-11-27T17:00",
+          "fin": "2026-11-27T17:00",
+          "horas": 0,
+          "pct": 0,
+          "resumen": false,
+          "hito": true
+        },
+        {
+          "uid": "26",
+          "nombre": "CUADRILLA 2 · PISO",
+          "nivel": 1,
+          "inicio": "2026-11-10T08:00",
+          "fin": "2026-11-26T17:00",
+          "horas": 0,
+          "pct": 0,
+          "resumen": true,
+          "hito": false
+        },
+        {
+          "uid": "27",
+          "nombre": "Instalación del gabinete del TR nuevo (al terminar la canalización del circuito eléctrico, según comentario de obra)",
+          "nivel": 2,
+          "inicio": "2026-11-10T08:00",
+          "fin": "2026-11-10T17:00",
+          "horas": 8,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "28",
+          "nombre": "Bajadas y tramos bajos de Z3, 9 cajas de derivación (≈ 30 m)",
+          "nivel": 2,
+          "inicio": "2026-11-11T08:00",
+          "fin": "2026-11-12T17:00",
+          "horas": 16,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "29",
+          "nombre": "Tierra física TR nuevo: excavación, kit TG-45K, 2 varillas, registro; barra de tierra y medición ≤ 2.5 Ω",
+          "nivel": 2,
+          "inicio": "2026-11-20T08:00",
+          "fin": "2026-11-24T17:00",
+          "horas": 24,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "30",
+          "nombre": "Equipamiento del TR nuevo (switch + SFP, UPS, distribuidor óptico) y terminación del cable de la Zona 3",
+          "nivel": 2,
+          "inicio": "2026-11-19T08:00",
+          "fin": "2026-11-19T17:00",
+          "horas": 8,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "31",
+          "nombre": "Bajadas a TR06, 2 cajas, patch panel en TR06 (≈ 20 m)",
+          "nivel": 2,
+          "inicio": "2026-11-13T08:00",
+          "fin": "2026-11-13T17:00",
+          "horas": 8,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "32",
+          "nombre": "Bajadas a TR04 y tablero, 10 cajas, 5 extensores PoE (≈ 39 m)",
+          "nivel": 2,
+          "inicio": "2026-11-17T08:00",
+          "fin": "2026-11-18T17:00",
+          "horas": 16,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "33",
+          "nombre": "Conexión del circuito en tablero con LOTO, fusión de fibra y certificación de 15 nodos + fibra",
+          "nivel": 2,
+          "inicio": "2026-11-26T08:00",
+          "fin": "2026-11-26T17:00",
+          "horas": 8,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "34",
+          "nombre": "SALE CUADRILLA 2",
+          "nivel": 2,
+          "inicio": "2026-11-26T17:00",
+          "fin": "2026-11-26T17:00",
+          "horas": 0,
+          "pct": 0,
+          "resumen": false,
+          "hito": true
+        },
+        {
+          "uid": "35",
+          "nombre": "CONFIGURACIÓN Y ENTREGA",
+          "nivel": 1,
+          "inicio": "2026-11-24T08:00",
+          "fin": "2026-11-30T17:00",
+          "horas": 0,
+          "pct": 0,
+          "resumen": true,
+          "hito": false
+        },
+        {
+          "uid": "36",
+          "nombre": "Configuración de cada cámara al montarla (IP, switch, vista) y de disco y WAVE",
+          "nivel": 2,
+          "inicio": "2026-11-24T08:00",
+          "fin": "2026-11-27T17:00",
+          "horas": 32,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "37",
+          "nombre": "Recorrido con EUM por las 3 zonas, prueba de grabación WAVE y acta de entrega",
+          "nivel": 2,
+          "inicio": "2026-11-30T08:00",
+          "fin": "2026-11-30T17:00",
+          "horas": 8,
+          "pct": 0,
+          "resumen": false,
+          "hito": false
+        },
+        {
+          "uid": "38",
+          "nombre": "ENTREGA DEL PROYECTO",
+          "nivel": 2,
+          "inicio": "2026-11-30T17:00",
+          "fin": "2026-11-30T17:00",
+          "horas": 0,
+          "pct": 0,
+          "resumen": false,
+          "hito": true
+        }
+      ],
+      "xml": "planes/C02142.xml"
+    }
+  }
+}
