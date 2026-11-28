@@ -810,6 +810,12 @@ kbd {
   border-radius: 10px; padding: 10px 12px; white-space: pre-line; max-height: 160px; overflow: auto; line-height: 1.5;
 }
 .hoja-notas[hidden] { display: none; }
+.hoja-aviso-fechas {
+  display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 14px;
+  font-size: 13.5px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(224,160,48,.12); border: 1px solid rgba(224,160,48,.45);
+}
+.hoja-aviso-fechas[hidden] { display: none; }
 .hoja-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
 .hoja-kpi { background: var(--tarjeta-suave); border: 1px solid var(--borde); border-radius: 12px; padding: 12px 14px; min-width: 0; }
 .hoja-kpi .n { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }

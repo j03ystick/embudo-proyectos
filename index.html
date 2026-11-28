@@ -107,6 +107,7 @@
         <h2 class="hoja-titulo" id="hojaTitulo"></h2>
         <div class="hoja-chips" id="hojaChips"></div>
         <div class="hoja-datos" id="hojaDatos"></div>
+        <div class="hoja-aviso-fechas" id="hojaAvisoFechas" hidden></div>
         <div class="hoja-notas" id="hojaNotas"></div>
       </div>
       <div class="hoja-kpis" id="hojaKpis"></div>
@@ -2261,6 +2262,7 @@
       if (!hojaAbierta()) hoja.scroll = window.scrollY;
       if (hoja.p !== p) {
         hoja.p = p; hoja.clave = claveDe(p); hoja.xml = null; hoja.xmlNuevo = false; hoja.cambios = false; hoja.buscar = "";
+        hoja.fechasAntes = null;
         hoja.pestana = "plan";
       }
       document.getElementById("principal").hidden = true;
@@ -2294,6 +2296,8 @@
       irAlEmbudo();
     }
     function descartarHoja() {
+      if (hoja.fechasAntes && hoja.p) restaurar(hoja.p, hoja.fechasAntes);
+      hoja.fechasAntes = null;
       if (hoja.clave) {
         if (detallesGuardados[hoja.clave]) detalles[hoja.clave] = copiar(detallesGuardados[hoja.clave]);
         else delete detalles[hoja.clave];
@@ -2363,6 +2367,25 @@
       if (campoNota) {
         notas.appendChild(nuevo("b", "", nombreCampo(campoNota) + ": "));
         notas.appendChild(document.createTextNode(p[campoNota]));
+      }
+
+      // Si el plan ya estaba cargado pero las fechas del proyecto no coinciden, se ofrece actualizarlas
+      var avisoF = document.getElementById("hojaAvisoFechas");
+      avisoF.innerHTML = "";
+      avisoF.hidden = true;
+      if (d.plan && !fechasCoinciden(p, d.plan.tareas)) {
+        var f = fechasDelPlan(d.plan.tareas);
+        avisoF.hidden = false;
+        avisoF.appendChild(nuevo("span", "", "Las fechas del proyecto no coinciden con el plan de trabajo (" +
+          fechaCorta(f.ini, true) + " – " + fechaCorta(f.fin, true) + ")."));
+        var bf = nuevo("button", "hoja-boton chico", "Usar las fechas del plan");
+        bf.type = "button";
+        bf.onclick = function () {
+          aplicarFechasPlan(p, d.plan.tareas);
+          marcarCambios("Las fechas del proyecto se tomaron del plan: " + fechaCorta(f.ini, true) + " – " + fechaCorta(f.fin, true) + ".");
+          dibujarHoja();
+        };
+        avisoF.appendChild(bf);
       }
 
       dibujarKpis();
@@ -2601,6 +2624,32 @@
       return tabla;
     }
 
+    // --- Fechas del proyecto = primera y última fecha del plan de trabajo ---
+    function campoInicio() {
+      return NOMBRES_CAMPO.fecha_de_inicio || !NOMBRES_CAMPO.fecha_inicio ? "fecha_de_inicio" : "fecha_inicio";
+    }
+    function diaUTC(ms) { var d = new Date(ms); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); }
+    function fechasDelPlan(tareas) { var l = limitesPlan(tareas); return { ini: diaUTC(l.ini), fin: diaUTC(l.fin) }; }
+    function fechasCoinciden(p, tareas) {
+      var f = fechasDelPlan(tareas), a = leerFecha(p, campoInicio()), b = leerFecha(p, CAMPO_FIN);
+      return !!a && !!b && +a === f.ini && +b === f.fin;
+    }
+    function ponerFecha(p, campo, ms, nombre) {
+      if (!NOMBRES_CAMPO[campo]) NOMBRES_CAMPO[campo] = nombre;
+      p._fechas = p._fechas || {};
+      p._fechas[campo] = new Date(ms);
+      p[campo] = p._fechas[campo].toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    }
+    // Cambia Fecha de Inicio y Fecha de Fin del proyecto a las del plan. Devuelve true si cambiaron.
+    function aplicarFechasPlan(p, tareas) {
+      if (fechasCoinciden(p, tareas)) return false;
+      if (!hoja.fechasAntes) hoja.fechasAntes = copiaProyecto(p);   // para poder descartar
+      var f = fechasDelPlan(tareas);
+      ponerFecha(p, campoInicio(), f.ini, "Fecha de Inicio");
+      ponerFecha(p, CAMPO_FIN, f.fin, "Fecha de Fin");
+      return true;
+    }
+
     function importarPlan(archivo) {
       var lector = new FileReader();
       lector.onload = function () {
@@ -2611,7 +2660,10 @@
           recalcularResumenes(leido.tareas);
           d.plan = { archivo: archivo.name, cargado: hoyISO(), titulo: leido.titulo || "", tareas: leido.tareas };
           hoja.xml = texto; hoja.xmlNuevo = true;
-          marcarCambios("Cargaste el plan «" + archivo.name + "» (" + hojas(leido.tareas).length + " tareas).");
+          var f = fechasDelPlan(leido.tareas);
+          var cambioFechas = aplicarFechasPlan(hoja.p, leido.tareas);
+          marcarCambios("Cargaste el plan «" + archivo.name + "» (" + hojas(leido.tareas).length + " tareas)." +
+            (cambioFechas ? " Las fechas del proyecto se tomaron del plan: " + fechaCorta(f.ini, true) + " – " + fechaCorta(f.fin, true) + "." : ""));
           mensajeHoja("");
           dibujarHoja();
         } catch (e) { mensajeHoja(e.message, "mal"); }
@@ -2786,9 +2838,16 @@
               (hoja.xmlNuevo ? "Cargar plan de trabajo de " : "Actualizar avance del plan de ") + folio + " desde la página");
           })
         : Promise.resolve();
+      var conFechas = !!hoja.fechasAntes;
       pasoPlan
         .then(function () { return subirDetalleProyecto(token, clave, limpio, "Actualizar hoja de detalle de " + folio + " desde la página"); })
         .then(function (todo) {
+          // las fechas del proyecto (tomadas del plan) van al Excel de proyectos
+          if (!conFechas) return todo;
+          return subirProyectos(token, "Fechas de " + folio + " tomadas del plan de trabajo").then(function () { return todo; });
+        })
+        .then(function (todo) {
+          hoja.fechasAntes = null;
           escribirToken(token);
           document.getElementById("hojaToken").value = "";
           // lo que otros guardaron de otros proyectos también se actualiza aquí
