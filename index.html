@@ -171,6 +171,48 @@
     </div>
   </div>
 
+  <!-- ===== Pantalla de detalle de un proyecto (se abre al hacer clic en una ficha) ===== -->
+  <div class="fondo-panel" id="fondoDetalle">
+    <div class="panel panel-detalle" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="detalleTitulo">
+      <div class="detalle-cabeza">
+        <div class="detalle-titulos">
+          <span class="detalle-folio" id="detalleFolio"></span>
+          <h2 id="detalleTitulo"></h2>
+          <div id="detalleSemaforo"></div>
+        </div>
+        <button type="button" class="cerrar-x" id="detalleCerrarX" aria-label="Cerrar" title="Cerrar">✕</button>
+      </div>
+      <p class="sub">Cambia los datos que necesites y presiona «Guardar para todos». El <b>folio</b> no se puede cambiar.</p>
+
+      <!-- Los campos se arman solos con las columnas del Excel (ver CAMPOS_DETALLE en el código) -->
+      <form class="detalle-campos" id="detalleCampos" autocomplete="off"></form>
+
+      <!-- Confirmación antes de eliminar -->
+      <div class="confirmar-eliminar" id="confirmarEliminar" hidden>
+        <p id="textoEliminar"></p>
+        <div class="acciones">
+          <button type="button" class="peligro" id="siEliminar">Sí, eliminar</button>
+          <button type="button" class="secundario" id="noEliminar">No, conservarlo</button>
+        </div>
+      </div>
+
+      <div class="guardar-zona">
+        <div class="token-fila" id="detalleFilaToken">
+          <input id="detalleToken" type="password" placeholder="Pega aquí tu clave de GitHub" autocomplete="off">
+        </div>
+        <div class="acciones">
+          <button type="button" class="principal" id="detalleGuardar">Guardar para todos</button>
+          <button type="button" class="secundario" id="detalleCancelar">Cancelar</button>
+          <button type="button" class="eliminar" id="detalleEliminar">🗑 Eliminar proyecto</button>
+        </div>
+        <p class="mensaje detalle-mensaje" id="detalleMensaje"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aviso breve (abajo de la pantalla) -->
+  <div class="aviso-flotante" id="avisoFlotante" role="status" aria-live="polite"></div>
+
   <!-- Librería que permite leer archivos de Excel desde la página -->
   <script src="lib/xlsx.full.min.js"></script>
   <script>
@@ -298,10 +340,12 @@
       });
       document.getElementById("volver").onclick = salirDeFoco;
       document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && detalleAbierto()) { cerrarDetalle(); return; }
         var panelAbierto = document.getElementById("fondoPanel").classList.contains("abierto");
         if (e.key === "Escape" && estado.seleccionado && !panelAbierto) salirDeFoco();
       });
       prepararPanel();
+      prepararDetalle();
       dibujarTodo();
     }
 
@@ -1049,6 +1093,15 @@
       var t = nuevo("article", "tarjeta");
       t.style.setProperty("--color", color);
       t.style.setProperty("--i", Math.min(i, 12));
+      // Clic (o Enter) en la ficha: abre la pantalla de detalle para ver, editar o eliminar
+      t.tabIndex = 0;
+      t.setAttribute("role", "button");
+      t.setAttribute("aria-label", "Ver y editar " + (p.folio ? p.folio + " · " : "") + p.nombre);
+      t.title = "Clic para ver y editar este proyecto";
+      t.onclick = function () { abrirDetalle(p); };
+      t.onkeydown = function (e) {
+        if (e.target === t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); abrirDetalle(p); }
+      };
 
       var celProy = nuevo("div", "celda celda-proyecto");
       if (p.folio) celProy.appendChild(nuevo("span", "folio", p.folio));
@@ -1094,7 +1147,9 @@
           boton.setAttribute("aria-expanded", "false");
           var texto = nuevo("div", "texto-notas", p[nota]);
           texto.hidden = true;
-          boton.onclick = function () {
+          texto.onclick = function (e) { e.stopPropagation(); };   // leer las notas no abre el detalle
+          boton.onclick = function (e) {
+            e.stopPropagation();   // el botón de notas solo abre las notas, no el detalle
             texto.hidden = !texto.hidden;
             boton.setAttribute("aria-expanded", String(!texto.hidden));
             t.classList.toggle("abierta", !texto.hidden);
@@ -1272,8 +1327,8 @@
     // ===== 6) Importar y exportar el Excel de proyectos =====
     var importado = null;   // { archivo, antes: {proyectos, nombres, bytes} } mientras no se guarde
 
-    // Descarga los proyectos que se ven ahora como un archivo de Excel
-    function exportarExcel() {
+    // Arma un libro de Excel con los proyectos que se ven ahora (lo usan Exportar y la pantalla de detalle)
+    function libroProyectos() {
       var columnas = Object.keys(NOMBRES_CAMPO);
       var filas = proyectos.map(function (p) {
         var fila = {};
@@ -1301,6 +1356,12 @@
       var hojaListas = XLSX.utils.aoa_to_sheet(listas);
       hojaListas["!cols"] = [{ wch: 18 }, { wch: 22 }, { wch: 10 }];
       XLSX.utils.book_append_sheet(libro, hojaListas, "Listas");
+      return libro;
+    }
+
+    // Descarga los proyectos que se ven ahora como un archivo de Excel
+    function exportarExcel() {
+      var libro = libroProyectos();
       var hoy = new Date();
       var fecha = hoy.getFullYear() + "-" + ("0" + (hoy.getMonth() + 1)).slice(-2) + "-" + ("0" + hoy.getDate()).slice(-2);
       XLSX.writeFile(libro, "proyectos-" + fecha + ".xlsx");
@@ -1403,6 +1464,290 @@
           mensaje("¡Guardado! Los demás lo verán en 1 o 2 minutos.", "ok");
         })
         .catch(function (e) { mensaje(e.message, "mal"); });
+    }
+
+    // ===== 7) Pantalla de detalle: ver, editar y eliminar un proyecto =====
+    // Cada columna del Excel aparece sola como un campo de texto. Aquí solo se anotan
+    // las que necesitan algo especial. Para un rubro nuevo basta con agregar la columna
+    // al Excel; si debe ser lista desplegable, fecha o texto largo, se agrega una línea aquí.
+    //   soloLectura: se ve pero no se cambia · oculto: no se muestra
+    //   tipo: "texto" | "lista" | "fecha" | "largo" · lista: qué lista de Parámetros usa
+    //   opciones: lista fija [valor, texto] · ancho: "completo" ocupa toda la fila
+    var CAMPOS_DETALLE = {
+      id:          { oculto: true },
+      folio:       { soloLectura: true },
+      nombre:      { tipo: "texto", obligatorio: true, ancho: "completo" },
+      etapa:       { tipo: "lista", lista: "etapas" },
+      coordinador: { tipo: "lista", lista: "coordinadores" },
+      propia:      { tipo: "lista", opciones: [["SI", "Cuadrilla propia (SI)"], ["NO", "Partner (NO)"]] }
+    };
+    var ORDEN_DETALLE = ["folio", "nombre", "cliente", "ciudad", "etapa", "coordinador", "propia"];
+
+    var detalle = { proyecto: null, ocupado: false };
+    function detalleAbierto() { return document.getElementById("fondoDetalle").classList.contains("abierto"); }
+
+    // Cómo se edita un campo (lo de CAMPOS_DETALLE, o lo que se deduce del nombre de la columna)
+    function configCampo(c) {
+      var cfg = CAMPOS_DETALLE[c] || {};
+      if (!cfg.tipo) {
+        if (NOTAS.indexOf(c) !== -1) cfg = Object.assign({ tipo: "largo", ancho: "completo" }, cfg);
+        else if (c.indexOf("fecha") === 0 || proyectos.some(function (p) { return p._fechas && p._fechas[c]; }))
+          cfg = Object.assign({ tipo: "fecha" }, cfg);
+        else cfg = Object.assign({ tipo: "texto" }, cfg);
+      }
+      return cfg;
+    }
+
+    // Campos que se muestran, en orden: los principales primero, las notas al final
+    function camposDetalle() {
+      var todos = Object.keys(NOMBRES_CAMPO).filter(function (c) {
+        // la columna "Semaforo" del Excel se oculta si el semáforo automático está prendido (igual que en las fichas)
+        return !configCampo(c).oculto && !(c === "semaforo" && semaforoActivo());
+      });
+      if (todos.indexOf("nombre") === -1) todos.unshift("nombre");
+      return todos.sort(function (a, b) {
+        var pa = ORDEN_DETALLE.indexOf(a), pb = ORDEN_DETALLE.indexOf(b);
+        var na = configCampo(a).tipo === "largo", nb = configCampo(b).tipo === "largo";
+        return (na - nb) || ((pa === -1 ? 50 : pa) - (pb === -1 ? 50 : pb)) || (todos.indexOf(a) - todos.indexOf(b));
+      });
+    }
+
+    function fechaISO(d) { return d ? d.toISOString().slice(0, 10) : ""; }
+
+    function prepararDetalle() {
+      var fondo = document.getElementById("fondoDetalle");
+      fondo.onclick = function (e) { if (e.target === fondo) cerrarDetalle(); };
+      document.getElementById("detalleCerrarX").onclick = cerrarDetalle;
+      document.getElementById("detalleCancelar").onclick = cerrarDetalle;
+      document.getElementById("detalleGuardar").onclick = guardarDetalle;
+      document.getElementById("detalleCampos").onsubmit = function (e) { e.preventDefault(); guardarDetalle(); };
+      document.getElementById("detalleEliminar").onclick = function () { pedirConfirmacion(true); };
+      document.getElementById("noEliminar").onclick = function () { pedirConfirmacion(false); };
+      document.getElementById("siEliminar").onclick = eliminarProyecto;
+    }
+
+    function mensajeDetalle(texto, tipo) {
+      var m = document.getElementById("detalleMensaje");
+      m.textContent = texto || "";
+      m.className = "mensaje detalle-mensaje " + (tipo || "");
+    }
+
+    function abrirDetalle(p) {
+      detalle.proyecto = p;
+      detalle.ocupado = false;
+      document.getElementById("detalleFolio").textContent = p.folio ? "Folio " + p.folio : "Sin folio";
+      document.getElementById("detalleTitulo").textContent = p.nombre;
+      var sem = document.getElementById("detalleSemaforo");
+      sem.innerHTML = "";
+      if (semaforoActivo()) {
+        var s = semaforoDe(p), luz = nuevo("span", "semaforo " + s.color);
+        luz.appendChild(nuevo("i"));
+        luz.appendChild(document.createTextNode(s.texto));
+        sem.appendChild(luz);
+      }
+      dibujarCamposDetalle(p);
+      pedirConfirmacion(false);
+      mensajeDetalle("");
+      document.getElementById("detalleFilaToken").style.display = leerToken() ? "none" : "flex";
+      bloquearDetalle(false);
+      document.getElementById("fondoDetalle").classList.add("abierto");
+      document.getElementById("fondoDetalle").scrollTop = 0;
+      document.querySelector("#fondoDetalle .panel-detalle").focus();
+    }
+
+    function cerrarDetalle() {
+      if (detalle.ocupado) return;   // espera a que termine de guardar
+      document.getElementById("fondoDetalle").classList.remove("abierto");
+      detalle.proyecto = null;
+    }
+
+    function dibujarCamposDetalle(p) {
+      var form = document.getElementById("detalleCampos");
+      form.innerHTML = "";
+      camposDetalle().forEach(function (c) {
+        var cfg = configCampo(c);
+        var caja = nuevo("label", "campo" + (cfg.ancho === "completo" ? " completo" : ""));
+        caja.appendChild(nuevo("span", "campo-nombre", nombreCampo(c) + (cfg.obligatorio ? " *" : "")));
+        var valor = p[c] || "", control;
+
+        if (cfg.tipo === "lista") {
+          control = document.createElement("select");
+          var opciones = cfg.opciones || (parametros[cfg.lista] || []).map(function (x) { return [x, x]; });
+          var actual = valor;
+          if (cfg.opciones && c === "propia") {   // SI / NO aunque venga como "x", "sí", etc.
+            var pr = esPropia(valor);
+            actual = pr === true ? "SI" : pr === false ? "NO" : valor;
+          }
+          var hay = opciones.some(function (o) { return normalizar(o[0]) === normalizar(actual); });
+          if (!actual || cfg.opciones) control.appendChild(new Option("— Sin dato —", ""));
+          if (actual && !hay) control.appendChild(new Option(actual + " (no está en Parámetros)", actual));
+          opciones.forEach(function (o) { control.appendChild(new Option(o[1], o[0])); });
+          var elegida = opciones.filter(function (o) { return normalizar(o[0]) === normalizar(actual); })[0];
+          control.value = elegida ? elegida[0] : actual;
+        } else if (cfg.tipo === "largo") {
+          control = document.createElement("textarea");
+          control.rows = 6;
+          control.value = valor;
+        } else {
+          control = document.createElement("input");
+          var fecha = cfg.tipo === "fecha" ? leerFecha(p, c) : null;
+          if (cfg.tipo === "fecha" && (fecha || !valor)) {   // si el texto no es una fecha, se deja como texto
+            control.type = "date";
+            control.value = fechaISO(fecha);
+          } else {
+            control.type = "text";
+            control.value = valor;
+          }
+        }
+        if (cfg.soloLectura) {
+          control.readOnly = true;
+          control.tabIndex = -1;
+          caja.classList.add("solo-lectura");
+          caja.title = "Este dato no se puede cambiar";
+        }
+        if (cfg.obligatorio) control.required = true;
+        control.name = c;
+        control.dataset.tipo = control.type === "date" ? "fecha" : cfg.tipo;
+        caja.appendChild(control);
+        form.appendChild(caja);
+      });
+    }
+
+    // Copia de un proyecto (con sus fechas reales) para poder regresar si algo falla
+    function copiaProyecto(p) {
+      var c = Object.assign({}, p);
+      if (p._fechas) c._fechas = Object.assign({}, p._fechas);
+      return c;
+    }
+    function restaurar(p, copia) {
+      Object.keys(p).forEach(function (k) { delete p[k]; });
+      Object.assign(p, copia);
+    }
+
+    function bloquearDetalle(si) {
+      detalle.ocupado = si;
+      document.querySelectorAll("#fondoDetalle button, #detalleCampos input, #detalleCampos select, #detalleCampos textarea")
+        .forEach(function (b) { b.disabled = si; });
+    }
+
+    function pedirConfirmacion(mostrar) {
+      var caja = document.getElementById("confirmarEliminar");
+      caja.hidden = !mostrar;
+      if (mostrar && detalle.proyecto) {
+        document.getElementById("textoEliminar").textContent =
+          "¿Seguro que quieres eliminar «" + detalle.proyecto.nombre + "»" + (detalle.proyecto.folio ? " (folio " + detalle.proyecto.folio + ")" : "") +
+          "? Se quitará del embudo y del Excel para todos. Si te arrepientes, puedes recuperarlo desde el historial de GitHub.";
+        document.getElementById("siEliminar").focus();
+      }
+    }
+
+    function tokenDetalle() {
+      var token = leerToken() || document.getElementById("detalleToken").value.trim();
+      if (!token) mensajeDetalle("Pega tu clave de GitHub para poder guardar.", "mal");
+      return token;
+    }
+
+    // Sube a GitHub el Excel con los proyectos como están ahora
+    function subirProyectos(token, mensajeCommit) {
+      var bytes = new Uint8Array(XLSX.write(libroProyectos(), { bookType: "xlsx", type: "array" }));
+      return subirArchivo(token, ARCHIVO_EXCEL, aBase64(bytes), mensajeCommit).then(function () {
+        escribirToken(token);
+        document.getElementById("detalleToken").value = "";
+        bytesExcel = bytes;
+        importado = null;   // si había un Excel importado sin guardar, ya quedó guardado junto con este cambio
+        dibujarAvisoImportado();
+        textoFecha = "Datos actualizados el " + fechaBonita(new Date());
+        document.getElementById("actualizado").textContent = textoFecha;
+      });
+    }
+
+    function guardarDetalle() {
+      var p = detalle.proyecto;
+      if (!p || detalle.ocupado) return;
+      var form = document.getElementById("detalleCampos");
+      var nombre = form.elements.nombre && form.elements.nombre.value.trim();
+      if (!nombre) { mensajeDetalle("El nombre del proyecto no puede quedar vacío.", "mal"); form.elements.nombre.focus(); return; }
+
+      // ¿Qué cambió?
+      var cambios = [];
+      Array.prototype.forEach.call(form.elements, function (control) {
+        var c = control.name;
+        if (!c || control.readOnly) return;
+        if (control.dataset.tipo === "fecha") {
+          var antes = fechaISO(leerFecha(p, c));
+          if (control.value !== antes) cambios.push({ campo: c, fecha: control.value });
+        } else {
+          var v = control.value.replace(/\r\n?/g, "\n").trim();
+          if (v !== (p[c] || "")) cambios.push({ campo: c, valor: v });
+        }
+      });
+      if (!cambios.length) { mensajeDetalle("No hay cambios que guardar."); return; }
+      var token = tokenDetalle();
+      if (!token) return;
+
+      var copia = copiaProyecto(p);
+      cambios.forEach(function (x) {
+        if (!NOMBRES_CAMPO[x.campo]) NOMBRES_CAMPO[x.campo] = nombreCampo(x.campo);
+        if (x.fecha !== undefined) {
+          p._fechas = p._fechas || {};
+          if (x.fecha) {
+            var d = x.fecha.split("-");
+            p._fechas[x.campo] = new Date(Date.UTC(+d[0], d[1] - 1, +d[2]));
+            p[x.campo] = p._fechas[x.campo].toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+          } else { delete p._fechas[x.campo]; p[x.campo] = ""; }
+        } else p[x.campo] = x.valor;
+      });
+      ajustarAParametros();   // p. ej. coordinador vacío pasa a POR ASIGNAR
+
+      bloquearDetalle(true);
+      mensajeDetalle("Guardando…");
+      subirProyectos(token, "Editar proyecto " + (p.folio || p.nombre) + " desde la página")
+        .then(function () {
+          bloquearDetalle(false);
+          cerrarDetalle();
+          dibujarTodo();
+          avisar("Cambios guardados en «" + p.nombre + "». Los demás los verán en 1 o 2 minutos.");
+        })
+        .catch(function (e) {
+          restaurar(p, copia);   // no se guardó: se regresa a como estaba
+          bloquearDetalle(false);
+          mensajeDetalle(e.message + " No se guardó nada.", "mal");
+        });
+    }
+
+    function eliminarProyecto() {
+      var p = detalle.proyecto;
+      if (!p || detalle.ocupado) return;
+      var token = tokenDetalle();
+      if (!token) { pedirConfirmacion(false); return; }
+      var lugar = proyectos.indexOf(p);
+      if (lugar === -1) return;
+      proyectos.splice(lugar, 1);
+      bloquearDetalle(true);
+      mensajeDetalle("Eliminando…");
+      subirProyectos(token, "Eliminar proyecto " + (p.folio || p.nombre) + " desde la página")
+        .then(function () {
+          bloquearDetalle(false);
+          cerrarDetalle();
+          actualizarIndicadores();
+          dibujarTodo();
+          avisar("Se eliminó «" + p.nombre + "». Los demás lo verán en 1 o 2 minutos.");
+        })
+        .catch(function (e) {
+          proyectos.splice(lugar, 0, p);   // no se guardó: se regresa
+          bloquearDetalle(false);
+          pedirConfirmacion(false);
+          mensajeDetalle(e.message + " El proyecto no se eliminó.", "mal");
+        });
+    }
+
+    var esperaAviso;
+    function avisar(texto) {
+      var a = document.getElementById("avisoFlotante");
+      a.textContent = texto;
+      a.classList.add("visible");
+      clearTimeout(esperaAviso);
+      esperaAviso = setTimeout(function () { a.classList.remove("visible"); }, 5000);
     }
   </script>
 </body>
