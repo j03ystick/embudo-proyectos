@@ -31,7 +31,7 @@
     </div>
   </header>
 
-  <div class="contenedor">
+  <div class="contenedor" id="principal">
 
     <!-- Indicadores rápidos -->
     <div class="indicadores">
@@ -80,6 +80,66 @@
     <div class="listas" id="listas"></div>
   </div>
 
+  <!-- ===== Hoja de detalle del proyecto (pantalla completa; se abre al hacer clic en una ficha) ===== -->
+  <div class="contenedor hoja" id="hoja" hidden>
+    <div class="hoja-barra">
+      <button type="button" class="boton-volver" id="hojaVolver">← Volver al embudo</button>
+      <div class="hoja-acciones">
+        <button type="button" class="hoja-boton" id="hojaEditar">✏ Editar datos</button>
+        <input id="hojaToken" class="hoja-token" type="password" placeholder="Clave de GitHub" autocomplete="off" aria-label="Clave de GitHub">
+        <button type="button" class="hoja-boton principal" id="hojaGuardar">Guardar para todos</button>
+      </div>
+    </div>
+    <!-- Aviso de cambios sin guardar -->
+    <div class="hoja-pendiente" id="hojaPendiente" hidden>
+      <span id="hojaPendienteTexto"></span>
+      <span class="hoja-pendiente-botones" id="hojaPendienteSalir" hidden>
+        <button type="button" class="hoja-boton" id="hojaSalirSinGuardar">Salir sin guardar</button>
+        <button type="button" class="hoja-boton" id="hojaSeguir">Seguir aquí</button>
+      </span>
+    </div>
+    <p class="mensaje hoja-mensaje" id="hojaMensaje"></p>
+
+    <!-- Cabecera: datos generales e indicadores -->
+    <section class="hoja-caja hoja-cabecera">
+      <div>
+        <div class="hoja-folio" id="hojaFolio"></div>
+        <h2 class="hoja-titulo" id="hojaTitulo"></h2>
+        <div class="hoja-chips" id="hojaChips"></div>
+        <div class="hoja-datos" id="hojaDatos"></div>
+        <div class="hoja-notas" id="hojaNotas"></div>
+      </div>
+      <div class="hoja-kpis" id="hojaKpis"></div>
+    </section>
+
+    <!-- Curva S -->
+    <section class="hoja-caja">
+      <div class="hoja-caja-cab">
+        <div>
+          <h3>Curva S · avance planeado contra real</h3>
+          <p class="hoja-sub">La línea punteada sale de las fechas del plan de trabajo. La línea azul es el avance real que se va guardando. La raya roja es el día de hoy.</p>
+        </div>
+        <div class="hoja-leyenda">
+          <span><i class="ley-plan"></i>Planeado</span>
+          <span><i class="ley-real"></i>Real</span>
+          <span><i class="ley-hoy"></i>Hoy</span>
+        </div>
+      </div>
+      <div class="curva-s" id="curvaS"></div>
+    </section>
+
+    <!-- Abajo: plan de trabajo y cuadrilla -->
+    <section class="hoja-caja">
+      <div class="hoja-pestanas" role="tablist">
+        <button type="button" role="tab" data-pestana="plan" id="pestanaPlan">Plan de trabajo</button>
+        <button type="button" role="tab" data-pestana="cuadrilla" id="pestanaCuadrilla">Cuadrilla</button>
+      </div>
+      <div id="panelPlan" role="tabpanel"></div>
+      <div id="panelCuadrilla" role="tabpanel" hidden></div>
+      <input type="file" id="archivoPlan" accept=".xml" hidden>
+    </section>
+  </div>
+
   <!-- ===== Panel de Parámetros (se abre con el botón ⚙) ===== -->
   <div class="fondo-panel" id="fondoPanel">
     <div class="panel">
@@ -118,6 +178,25 @@
         </label>
       </div>
 
+      <!-- Avance del proyecto en las fichas -->
+      <div class="tema-fila">
+        <div>
+          <div class="titulo-tema">Avance en las fichas</div>
+          <div class="nota-tema">Muestra en cada ficha el % de avance total del proyecto (sale de su plan de trabajo). Apagado, la ficha se acomoda sola sin esa columna.</div>
+        </div>
+        <label class="interruptor">
+          <input type="checkbox" id="interruptorAvance" aria-label="Avance en las fichas">
+          <span class="pista"></span>
+        </label>
+      </div>
+
+      <!-- Paleta de colores de toda la página -->
+      <div class="paleta-fila">
+        <div class="titulo-tema">Paleta de colores</div>
+        <div class="nota-tema">Cambia los colores del embudo, el encabezado y los botones para todos. Funciona con tema claro y oscuro.</div>
+        <div class="paletas" id="paletas" role="radiogroup" aria-label="Paleta de colores"></div>
+      </div>
+
       <!-- Importar / exportar el Excel de proyectos -->
       <div class="datos-fila">
         <div>
@@ -150,6 +229,21 @@
             <button data-agregar="coordinadores">Agregar</button>
           </div>
           <div id="faltanCoordinadores"></div>
+        </div>
+      </div>
+
+      <!-- Recursos: personas que pueden formar parte de una cuadrilla -->
+      <div class="recursos-zona">
+        <h3>Recursos para cuadrillas</h3>
+        <p class="nota-tema">Todas las personas que pueden formar parte de la cuadrilla de un proyecto. Puesto, correo y teléfono son opcionales.
+          «Asignado a» se calcula solo con las fechas de inicio y fin de cada proyecto.</p>
+        <ul class="lista-recursos" id="listaRecursos"></ul>
+        <div class="agregar agregar-recurso">
+          <input id="nuevoRecNombre" placeholder="Nombre *">
+          <input id="nuevoRecPuesto" placeholder="Puesto">
+          <input id="nuevoRecCorreo" placeholder="Correo" type="email">
+          <input id="nuevoRecTelefono" placeholder="Teléfono" type="tel">
+          <button type="button" id="agregarRecurso">Agregar</button>
         </div>
       </div>
 
@@ -273,10 +367,13 @@
         parametros = json;
         parametros.etapas = parametros.etapas || [];
         parametros.coordinadores = parametros.coordinadores || [];
+        parametros.recursos = parametros.recursos || [];
         parametrosGuardados = copiar(parametros);
+        aplicarPaleta();
         return leerProyectos();
       })
-      .then(function (lista) { proyectos = lista; iniciar(); })
+      .then(function (lista) { proyectos = lista; return leerDetalles(); })
+      .then(function (d) { detalles = d; detallesGuardados = copiar(d); iniciar(); })
       .catch(function (e) {
         document.getElementById("listas").innerHTML =
           '<div class="error">No se pudieron leer los datos: ' + e.message + '</div>';
@@ -341,12 +438,15 @@
       document.getElementById("volver").onclick = salirDeFoco;
       document.addEventListener("keydown", function (e) {
         if (e.key === "Escape" && detalleAbierto()) { cerrarDetalle(); return; }
+        if (hojaAbierta()) return;   // en la hoja de detalle, Esc no hace nada (para no perder cambios)
         var panelAbierto = document.getElementById("fondoPanel").classList.contains("abierto");
         if (e.key === "Escape" && estado.seleccionado && !panelAbierto) salirDeFoco();
       });
       prepararPanel();
       prepararDetalle();
+      prepararHoja();
       dibujarTodo();
+      revisarDireccion();   // si el enlace trae #proyecto=..., abre esa hoja
     }
 
     // ===== 2) Armar los grupos =====
@@ -1068,8 +1168,9 @@
     function rejillaTarjetas(lista, color) {
       var cols = columnasDe(lista);
       var conNotas = lista.some(function (p) { return NOTAS.some(function (c) { return p[c]; }); });
-      var plantilla = "minmax(200px, 2.4fr)" + (semaforoActivo() ? " 172px" : "") +
-        cols.map(function () { return " minmax(92px, 1fr)"; }).join("") + (conNotas ? " 92px" : "");
+      var conAvance = mostrarAvance();
+      var plantilla = "minmax(170px, 2fr)" + (semaforoActivo() ? " 150px" : "") +
+        cols.map(function () { return " minmax(72px, 1fr)"; }).join("") + (conAvance ? " 84px" : "") + (conNotas ? " 80px" : "") + " 72px";
       var tabla = nuevo("div", "fichas");
       tabla.style.setProperty("--columnas", plantilla);
 
@@ -1077,10 +1178,12 @@
       enc.appendChild(nuevo("span", "", "Proyecto"));
       if (semaforoActivo()) enc.appendChild(nuevo("span", "", "Semáforo"));
       cols.forEach(function (c) { enc.appendChild(nuevo("span", "", nombreCampo(c))); });
+      if (conAvance) enc.appendChild(nuevo("span", "", "Avance"));
       if (conNotas) enc.appendChild(nuevo("span", "", ""));
+      enc.appendChild(nuevo("span", "", ""));   // íconos de editar y eliminar
       tabla.appendChild(enc);
 
-      ordenarPorUrgencia(lista).forEach(function (p, i) { tabla.appendChild(tarjeta(p, color, i, cols, conNotas)); });
+      ordenarPorUrgencia(lista).forEach(function (p, i) { tabla.appendChild(tarjeta(p, color, i, cols, conNotas, conAvance)); });
       return tabla;
     }
 
@@ -1089,18 +1192,18 @@
     }
 
     // Ficha de un proyecto (una fila): folio y nombre, semáforo, datos y botón de notas
-    function tarjeta(p, color, i, cols, conNotas) {
+    function tarjeta(p, color, i, cols, conNotas, conAvance) {
       var t = nuevo("article", "tarjeta");
       t.style.setProperty("--color", color);
       t.style.setProperty("--i", Math.min(i, 12));
-      // Clic (o Enter) en la ficha: abre la pantalla de detalle para ver, editar o eliminar
+      // Clic (o Enter) en la ficha: abre la hoja de detalle del proyecto (pantalla completa)
       t.tabIndex = 0;
       t.setAttribute("role", "button");
-      t.setAttribute("aria-label", "Ver y editar " + (p.folio ? p.folio + " · " : "") + p.nombre);
-      t.title = "Clic para ver y editar este proyecto";
-      t.onclick = function () { abrirDetalle(p); };
+      t.setAttribute("aria-label", "Abrir la hoja de detalle de " + (p.folio ? p.folio + " · " : "") + p.nombre);
+      t.title = "Clic para abrir la hoja de detalle";
+      t.onclick = function () { abrirHoja(p); };
       t.onkeydown = function (e) {
-        if (e.target === t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); abrirDetalle(p); }
+        if (e.target === t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); abrirHoja(p); }
       };
 
       var celProy = nuevo("div", "celda celda-proyecto");
@@ -1137,6 +1240,8 @@
         t.appendChild(cel);
       });
 
+      if (conAvance) t.appendChild(celdaAvance(p));
+
       var nota = NOTAS.filter(function (c) { return p[c]; })[0];
       if (conNotas) {
         var celNota = nuevo("div", "celda celda-notas");
@@ -1161,7 +1266,51 @@
           t.appendChild(celNota);
         }
       }
+
+      // Íconos: lápiz = editar datos generales · bote = eliminar (con confirmación)
+      var celIconos = nuevo("div", "celda celda-iconos");
+      var lapiz = botonIcono(ICONO_LAPIZ, "Editar datos de " + p.nombre, "icono-ficha");
+      lapiz.onclick = function (e) { e.stopPropagation(); abrirDetalle(p); };
+      var bote = botonIcono(ICONO_BOTE, "Eliminar " + p.nombre, "icono-ficha rojo");
+      bote.onclick = function (e) { e.stopPropagation(); abrirDetalle(p); pedirConfirmacion(true); };
+      celIconos.appendChild(lapiz);
+      celIconos.appendChild(bote);
+      t.appendChild(celIconos);
+      if (texto && t.lastChild !== texto) t.appendChild(texto);   // las notas abiertas van hasta abajo de la ficha
       return t;
+    }
+
+    var ICONO_LAPIZ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+    var ICONO_BOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+    function botonIcono(svg, titulo, clase) {
+      var b = nuevo("button", clase);
+      b.type = "button";
+      b.innerHTML = svg;
+      b.title = titulo;
+      b.setAttribute("aria-label", titulo);
+      return b;
+    }
+
+    // Columna "Avance" de la ficha: % total del proyecto según su plan de trabajo
+    function celdaAvance(p) {
+      var cel = nuevo("div", "celda celda-avance");
+      cel.dataset.etiqueta = "Avance";
+      var d = detalles[claveDe(p)];
+      if (!d || !d.plan || !d.plan.tareas || !d.plan.tareas.length) {
+        cel.classList.add("vacia");
+        cel.textContent = "Sin plan";
+        cel.title = "Este proyecto aún no tiene plan de trabajo";
+        return cel;
+      }
+      var pct = avanceTotal(d.plan.tareas);
+      cel.appendChild(nuevo("span", "avance-num", pct + "%"));
+      var barra = nuevo("span", "avance-barra");
+      var lleno = nuevo("i");
+      lleno.style.width = pct + "%";
+      barra.appendChild(lleno);
+      cel.appendChild(barra);
+      cel.title = "Avance total del proyecto (como lo calcula Project)";
+      return cel;
     }
 
     // ===== 5) Panel de Parámetros =====
@@ -1198,6 +1347,12 @@
       }
       interSem.onchange = cambiarSemaforo;
       inputDias.onchange = cambiarSemaforo;
+      // Avance en las fichas: se prende o apaga (se guarda en parametros.json)
+      document.getElementById("interruptorAvance").onchange = function () {
+        parametros.mostrarAvance = this.checked;
+        dibujarListas(ultimoGrupos);
+      };
+      prepararRecursos();
 
       document.getElementById("abrirParametros").onclick = function () {
         mensaje("");
@@ -1219,6 +1374,7 @@
 
       document.getElementById("descartar").onclick = function () {
         parametros = copiar(parametrosGuardados);
+        aplicarPaleta();
         if (importado) {
           proyectos = importado.antes.proyectos; NOMBRES_CAMPO = importado.antes.nombres; bytesExcel = importado.antes.bytes;
           importado = null; estado.seleccionado = null; dibujarAvisoImportado();
@@ -1260,6 +1416,9 @@
       dibujarListaParam("coordinadores", "listaCoordinadores", false);
       dibujarFaltantes("etapas", "etapa", "faltanEtapas");
       dibujarFaltantes("coordinadores", "coordinador", "faltanCoordinadores");
+      document.getElementById("interruptorAvance").checked = mostrarAvance();
+      dibujarPaletas();
+      dibujarRecursos();
     }
 
     function dibujarListaParam(tipo, idLista, conOrden) {
@@ -1706,6 +1865,7 @@
           bloquearDetalle(false);
           cerrarDetalle();
           dibujarTodo();
+          if (hoja.p === p) dibujarHoja();
           avisar("Cambios guardados en «" + p.nombre + "». Los demás los verán en 1 o 2 minutos.");
         })
         .catch(function (e) {
@@ -1729,6 +1889,7 @@
         .then(function () {
           bloquearDetalle(false);
           cerrarDetalle();
+          if (hoja.p === p) { hoja.cambios = false; irAlEmbudo(); }
           actualizarIndicadores();
           dibujarTodo();
           avisar("Se eliminó «" + p.nombre + "». Los demás lo verán en 1 o 2 minutos.");
@@ -1738,6 +1899,913 @@
           bloquearDetalle(false);
           pedirConfirmacion(false);
           mensajeDetalle(e.message + " El proyecto no se eliminó.", "mal");
+        });
+    }
+
+    // ===== 8) Paletas de colores (se eligen en ⚙ Parámetros y se guardan para todos) =====
+    // anillos: colores del embudo y de los grupos, en orden · marca: banda del encabezado · acento: botones y detalles
+    var PALETAS = [
+      { id: "consultiva", nombre: "Consultiva",
+        anillos: ["#5B8DEF", "#7A6FE0", "#E0A030", "#E07040", "#3BA272", "#D45087", "#2CA6B0", "#8C6D46", "#6B7A8F", "#B85FC2"],
+        claro: { marca: "#1f2a44", acento: "#2a78d6" }, oscuro: { marca: "#121a2b", acento: "#5b9cf0" } },
+      { id: "oceano", nombre: "Océano",
+        anillos: ["#0B6E99", "#38B2AC", "#5E60CE", "#4C9AFF", "#2C7A7B", "#3D5A80", "#1A9BB5", "#00A6A6", "#6C8EAD", "#7B9EC9"],
+        claro: { marca: "#0b3d5c", acento: "#0b84a5" }, oscuro: { marca: "#0a2536", acento: "#4cc3d9" } },
+      { id: "atardecer", nombre: "Atardecer",
+        anillos: ["#E4572E", "#F3A712", "#D1495B", "#8F2D56", "#6D435A", "#F28F3B", "#A23B72", "#C8553D", "#E0882F", "#B5651D"],
+        claro: { marca: "#4a1d2f", acento: "#c43d53" }, oscuro: { marca: "#2b111b", acento: "#f08a8f" } },
+      { id: "bosque", nombre: "Bosque",
+        anillos: ["#2D6A4F", "#BC6C25", "#6A994E", "#A98467", "#1B4332", "#52B788", "#DDA15E", "#588157", "#40916C", "#386641"],
+        claro: { marca: "#1b4332", acento: "#2d8a5f" }, oscuro: { marca: "#0f261d", acento: "#5fc28f" } },
+      { id: "sobria", nombre: "Sobria",
+        anillos: ["#334155", "#2563EB", "#0F766E", "#7C3AED", "#64748B", "#1E40AF", "#475569", "#0369A1", "#94A3B8", "#52525B"],
+        claro: { marca: "#0f172a", acento: "#2563eb" }, oscuro: { marca: "#0b1120", acento: "#60a5fa" } }
+    ];
+    function paletaActual() {
+      return PALETAS.filter(function (x) { return x.id === parametros.paleta; })[0] || PALETAS[0];
+    }
+    function aplicarPaleta() {
+      var pal = paletaActual();
+      PALETA.splice.apply(PALETA, [0, PALETA.length].concat(pal.anillos));
+      var estilo = document.getElementById("estiloPaleta");
+      if (!estilo) { estilo = document.createElement("style"); estilo.id = "estiloPaleta"; document.head.appendChild(estilo); }
+      estilo.textContent =
+        ':root { --marca: ' + pal.claro.marca + '; --acento: ' + pal.claro.acento + '; --activo-fondo: ' + pal.claro.marca + '; }\n' +
+        ':root[data-tema="oscuro"] { --marca: ' + pal.oscuro.marca + '; --acento: ' + pal.oscuro.acento + '; --activo-fondo: #e8edf7; }';
+    }
+    function dibujarPaletas() {
+      var caja = document.getElementById("paletas");
+      caja.innerHTML = "";
+      PALETAS.forEach(function (pal) {
+        var b = nuevo("button", "paleta" + (pal.id === paletaActual().id ? " elegida" : ""));
+        b.type = "button";
+        b.setAttribute("role", "radio");
+        b.setAttribute("aria-checked", String(pal.id === paletaActual().id));
+        var muestras = nuevo("span", "paleta-muestras");
+        [pal.claro.marca].concat(pal.anillos.slice(0, 5)).forEach(function (c) {
+          var m = nuevo("i"); m.style.background = c; muestras.appendChild(m);
+        });
+        b.appendChild(muestras);
+        b.appendChild(nuevo("span", "paleta-nombre", pal.nombre));
+        b.onclick = function () {
+          parametros.paleta = pal.id;
+          aplicarPaleta();
+          dibujarPanel();
+          dibujarTodo();
+          if (hojaAbierta()) dibujarHoja();
+        };
+        caja.appendChild(b);
+      });
+    }
+
+    function mostrarAvance() { return parametros.mostrarAvance !== false; }
+
+    // ===== 9) Detalles de cada proyecto (cuadrilla, plan de trabajo e historial de avance) =====
+    // Se guardan en detalles.json:  { "<folio>": { cuadrilla: [nombres], plan: {...}, historial: [{fecha, pct}] } }
+    // El XML original de Project se guarda en planes/<folio>.xml (para poder exportarlo con los avances).
+    var ARCHIVO_DETALLES = "detalles.json";
+    var CARPETA_PLANES = "planes/";
+    var detalles = {};
+    var detallesGuardados = {};
+
+    function leerDetalles() {
+      return fetch(ARCHIVO_DETALLES + "?v=" + Date.now())
+        .then(function (r) { return r.ok ? r.json() : {}; })
+        .catch(function () { return {}; })
+        .then(function (d) { return d && typeof d === "object" ? d : {}; });
+    }
+    function claveDe(p) { return (p.folio || p.id || p.nombre || "").toString().trim(); }
+    function archivoPlan(clave) { return CARPETA_PLANES + clave.replace(/[^A-Za-z0-9_-]+/g, "_") + ".xml"; }
+    function detalleDe(clave) {
+      var d = detalles[clave] || (detalles[clave] = {});
+      d.cuadrilla = d.cuadrilla || [];
+      d.historial = d.historial || [];
+      return d;
+    }
+
+    // --- Fechas (se manejan como días UTC, igual que las del Excel) ---
+    var DIA = 864e5;
+    function hoyMs() { var h = new Date(); return Date.UTC(h.getFullYear(), h.getMonth(), h.getDate(), h.getHours(), h.getMinutes()); }
+    function hoyISO() { var h = new Date(); return h.getFullYear() + "-" + ("0" + (h.getMonth() + 1)).slice(-2) + "-" + ("0" + h.getDate()).slice(-2); }
+    function msDe(texto) {   // "2026-11-02T08:00:00" o "2026-11-02" -> milisegundos
+      var m = (texto || "").match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+      return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : null;
+    }
+    function fechaCorta(ms, conAnio) {
+      var d = new Date(ms);
+      return d.getUTCDate() + " " + MESES[d.getUTCMonth()] + (conAnio ? " " + d.getUTCFullYear() : "");
+    }
+    function inicioDe(p) { return leerFecha(p, "fecha_de_inicio") || leerFecha(p, "fecha_inicio"); }
+
+    // --- Leer el XML de Microsoft Project ---
+    function hijo(nodo, nombre) {
+      for (var c = nodo.firstElementChild; c; c = c.nextElementSibling) if (c.localName === nombre) return c;
+      return null;
+    }
+    function textoHijo(nodo, nombre) { var h = hijo(nodo, nombre); return h ? h.textContent.trim() : ""; }
+    function horasDe(duracion) {   // "PT32H0M0S" -> 32
+      var m = (duracion || "").match(/^P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$/);
+      if (!m) return 0;
+      return (+(m[1] || 0)) * 8 + (+(m[2] || 0)) + (+(m[3] || 0)) / 60 + (+(m[4] || 0)) / 3600;
+    }
+    function leerXMLProject(texto) {
+      var doc = new DOMParser().parseFromString(texto, "application/xml");
+      if (doc.getElementsByTagName("parsererror").length) throw new Error("El archivo no es un XML válido.");
+      var raiz = doc.documentElement;
+      var lista = raiz.localName === "Project" ? hijo(raiz, "Tasks") : null;
+      if (!lista) throw new Error("El archivo no parece un plan de Microsoft Project. En Project usa Archivo › Guardar como › XML.");
+      var titulo = textoHijo(raiz, "Title") || textoHijo(raiz, "Name");
+      var tareas = [];
+      for (var t = lista.firstElementChild; t; t = t.nextElementSibling) {
+        if (t.localName !== "Task" || textoHijo(t, "IsNull") === "1") continue;
+        var nivel = parseInt(textoHijo(t, "OutlineLevel") || "1", 10);
+        var nombre = textoHijo(t, "Name");
+        if (nivel === 0) { titulo = titulo || nombre; continue; }   // la tarea 0 es el resumen del proyecto
+        var ini = msDe(textoHijo(t, "Start")), fin = msDe(textoHijo(t, "Finish"));
+        if (!nombre || ini === null || fin === null) continue;
+        tareas.push({
+          uid: textoHijo(t, "UID"), nombre: nombre, nivel: nivel,
+          inicio: textoHijo(t, "Start").slice(0, 16), fin: textoHijo(t, "Finish").slice(0, 16),
+          horas: Math.round(horasDe(textoHijo(t, "Duration")) * 100) / 100,
+          pct: Math.max(0, Math.min(100, parseInt(textoHijo(t, "PercentComplete") || "0", 10) || 0)),
+          resumen: textoHijo(t, "Summary") === "1", hito: textoHijo(t, "Milestone") === "1"
+        });
+      }
+      if (!tareas.length) throw new Error("El plan no tiene tareas.");
+      // Si el archivo no marca los resúmenes, se deducen por la sangría (nivel)
+      tareas.forEach(function (x, i) { if (tareas[i + 1] && tareas[i + 1].nivel > x.nivel) x.resumen = true; });
+      return { titulo: titulo, tareas: tareas };
+    }
+
+    // --- Cálculos de avance (como Project: las tareas largas pesan más) ---
+    function hojas(tareas) { return tareas.filter(function (x) { return !x.resumen; }); }
+    function avanceDe(lista) {
+      var peso = 0, hecho = 0;
+      lista.forEach(function (x) { peso += x.horas; hecho += x.horas * x.pct / 100; });
+      if (peso > 0) return Math.round(hecho * 100 / peso);
+      if (!lista.length) return 0;
+      return Math.round(lista.reduce(function (s, x) { return s + x.pct; }, 0) / lista.length);
+    }
+    function avanceTotal(tareas) { return avanceDe(hojas(tareas)); }
+    // Recalcula el % de cada tarea resumen con las tareas que tiene adentro
+    function recalcularResumenes(tareas) {
+      tareas.forEach(function (x, i) {
+        if (!x.resumen) return;
+        var dentro = [];
+        for (var j = i + 1; j < tareas.length && tareas[j].nivel > x.nivel; j++) if (!tareas[j].resumen) dentro.push(tareas[j]);
+        x.pct = avanceDe(dentro);
+      });
+    }
+    function limitesPlan(tareas) {
+      var ini = Infinity, fin = -Infinity;
+      tareas.forEach(function (x) { ini = Math.min(ini, msDe(x.inicio)); fin = Math.max(fin, msDe(x.fin)); });
+      return { ini: ini, fin: fin };
+    }
+    // % que debería llevarse en el momento t según las fechas del plan
+    function planeadoEn(tareas, t) {
+      var lista = hojas(tareas), peso = 0, hecho = 0, cuenta = 0, suma = 0;
+      lista.forEach(function (x) {
+        var a = msDe(x.inicio), b = msDe(x.fin);
+        var f = b <= a ? (t >= b ? 1 : 0) : Math.max(0, Math.min(1, (t - a) / (b - a)));
+        peso += x.horas; hecho += x.horas * f; cuenta++; suma += f;
+      });
+      if (peso > 0) return hecho * 100 / peso;
+      return cuenta ? suma * 100 / cuenta : 0;
+    }
+
+    // --- Exportar: el XML original con los % de avance actualizados ---
+    function xmlConAvances(texto, tareas) {
+      var doc = new DOMParser().parseFromString(texto, "application/xml");
+      var porUid = {};
+      tareas.forEach(function (x) { porUid[x.uid] = x; });
+      var total = avanceTotal(tareas);
+      var lista = hijo(doc.documentElement, "Tasks");
+      for (var t = lista.firstElementChild; t; t = t.nextElementSibling) {
+        if (t.localName !== "Task") continue;
+        var uid = textoHijo(t, "UID");
+        var pct = textoHijo(t, "OutlineLevel") === "0" ? total : (porUid[uid] ? porUid[uid].pct : null);
+        if (pct === null) continue;
+        ["PercentComplete", "PercentWorkComplete"].forEach(function (campo) {
+          var h = hijo(t, campo);
+          if (h) h.textContent = String(pct);
+          else if (campo === "PercentComplete") {   // si no venía, se agrega
+            h = doc.createElementNS(doc.documentElement.namespaceURI, campo);
+            h.textContent = String(pct);
+            t.appendChild(h);
+          }
+        });
+      }
+      return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + new XMLSerializer().serializeToString(doc.documentElement);
+    }
+    function descargar(nombre, contenido, tipo) {
+      var url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+      var a = document.createElement("a");
+      a.href = url; a.download = nombre;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    }
+    function textoABase64(texto) { return aBase64(new TextEncoder().encode(texto)); }
+
+    // --- Cuadrilla: ¿la persona ya está en otro proyecto con fechas que se cruzan? ---
+    function terminado(p) { return ETAPAS_TERMINADAS.indexOf(normalizar(p.etapa || "")) !== -1; }
+    function intervaloDe(p) {
+      var a = inicioDe(p), b = leerFecha(p, CAMPO_FIN);
+      return { ini: a ? +a : -Infinity, fin: b ? +b + DIA - 1 : Infinity, sinFechas: !a || !b };
+    }
+    function asignacionesDe(nombre) {   // proyectos (no terminados) donde está la persona
+      var n = normalizar(nombre);
+      return proyectos.filter(function (p) {
+        var d = detalles[claveDe(p)];
+        return !terminado(p) && d && (d.cuadrilla || []).some(function (x) { return normalizar(x) === n; });
+      });
+    }
+    function choquesDe(nombre, p) {   // otros proyectos de la persona que se cruzan con las fechas de p
+      var a = intervaloDe(p);
+      return asignacionesDe(nombre).filter(function (q) {
+        if (q === p) return false;
+        var b = intervaloDe(q);
+        return a.ini <= b.fin && b.ini <= a.fin;
+      });
+    }
+    function textoFechas(q) {
+      var i = intervaloDe(q);
+      if (i.ini === -Infinity && i.fin === Infinity) return "sin fechas";
+      if (i.fin === Infinity) return "desde " + fechaCorta(i.ini) + ", sin fecha de fin";
+      if (i.ini === -Infinity) return "hasta " + fechaCorta(i.fin);
+      return fechaCorta(i.ini) + " – " + fechaCorta(i.fin);
+    }
+    function nombreCorto(q) { return (q.folio ? q.folio + " · " : "") + (q.nombre.length > 34 ? q.nombre.slice(0, 32) + "…" : q.nombre); }
+
+    // ===== 10) Recursos en ⚙ Parámetros =====
+    function prepararRecursos() {
+      var campos = ["nuevoRecNombre", "nuevoRecPuesto", "nuevoRecCorreo", "nuevoRecTelefono"].map(function (id) { return document.getElementById(id); });
+      function agregar() {
+        var nombre = campos[0].value.trim();
+        if (!nombre) { mensaje("Escribe el nombre de la persona.", "mal"); campos[0].focus(); return; }
+        if (parametros.recursos.some(function (r) { return normalizar(r.nombre) === normalizar(nombre); })) {
+          mensaje('"' + nombre + '" ya está en Recursos.', "mal"); return;
+        }
+        var r = { nombre: nombre };
+        if (campos[1].value.trim()) r.puesto = campos[1].value.trim();
+        if (campos[2].value.trim()) r.correo = campos[2].value.trim();
+        if (campos[3].value.trim()) r.telefono = campos[3].value.trim();
+        parametros.recursos.push(r);
+        campos.forEach(function (c) { c.value = ""; });
+        campos[0].focus();
+        mensaje("");
+        dibujarRecursos();
+      }
+      document.getElementById("agregarRecurso").onclick = agregar;
+      campos.forEach(function (c) { c.onkeydown = function (e) { if (e.key === "Enter") agregar(); }; });
+    }
+
+    function estadoRecurso(nombre) {
+      var ahora = hoyMs(), actuales = [], proximos = [];
+      asignacionesDe(nombre).forEach(function (q) {
+        var i = intervaloDe(q);
+        if (i.ini <= ahora && ahora <= i.fin) actuales.push(q);
+        else if (i.ini > ahora) proximos.push(q);
+      });
+      return { actuales: actuales, proximos: proximos };
+    }
+
+    function dibujarRecursos() {
+      var ul = document.getElementById("listaRecursos");
+      ul.innerHTML = "";
+      if (!parametros.recursos.length) { ul.innerHTML = '<li class="vacio">Todavía no hay personas. Agrégalas abajo.</li>'; return; }
+      parametros.recursos.forEach(function (r, i) {
+        var li = nuevo("li", "recurso");
+        var fila = nuevo("div", "recurso-fila");
+        fila.appendChild(avatar(r.nombre, i));
+        fila.appendChild(nuevo("b", "recurso-nombre", r.nombre));
+        [["puesto", "Puesto"], ["correo", "Correo"], ["telefono", "Teléfono"]].forEach(function (c) {
+          var inp = document.createElement("input");
+          inp.placeholder = c[1]; inp.value = r[c[0]] || ""; inp.setAttribute("aria-label", c[1] + " de " + r.nombre);
+          inp.onchange = function () { var v = inp.value.trim(); if (v) r[c[0]] = v; else delete r[c[0]]; };
+          fila.appendChild(inp);
+        });
+        var quitar = botonPanel("✕", "Quitar de Recursos", false, function () {
+          parametros.recursos.splice(i, 1); dibujarRecursos();
+        });
+        fila.appendChild(quitar);
+        li.appendChild(fila);
+
+        var est = estadoRecurso(r.nombre);
+        var info = nuevo("div", "recurso-asignado");
+        var etiqueta = est.actuales.length ? ["ocupado", "Ocupado"] : ["libre", "Disponible"];
+        info.appendChild(nuevo("span", "estado-recurso " + etiqueta[0], etiqueta[1]));
+        if (!est.actuales.length && !est.proximos.length) info.appendChild(nuevo("span", "sin-asignar", "Sin proyecto asignado"));
+        est.actuales.forEach(function (q) { info.appendChild(chipAsignacion(q, "")); });
+        est.proximos.forEach(function (q) { info.appendChild(chipAsignacion(q, "Próximo: ")); });
+        li.appendChild(info);
+        ul.appendChild(li);
+      });
+    }
+    function chipAsignacion(q, antes) {
+      var c = nuevo("button", "asignacion" + (antes ? " proximo" : ""), antes + nombreCorto(q) + " · " + textoFechas(q));
+      c.type = "button";
+      c.title = "Abrir la hoja de " + q.nombre;
+      c.onclick = function () { document.getElementById("fondoPanel").classList.remove("abierto"); abrirHoja(q); };
+      return c;
+    }
+    function iniciales(nombre) {
+      return nombre.split(/\s+/).filter(Boolean).slice(0, 2).map(function (x) { return x.charAt(0).toUpperCase(); }).join("");
+    }
+    function avatar(nombre, i) {
+      var a = nuevo("span", "avatar", iniciales(nombre));
+      a.style.background = PALETA[i % PALETA.length];
+      a.setAttribute("aria-hidden", "true");
+      return a;
+    }
+    function indiceRecurso(nombre) {
+      var n = normalizar(nombre), i = -1;
+      parametros.recursos.forEach(function (r, j) { if (normalizar(r.nombre) === n) i = j; });
+      return i;
+    }
+
+    // ===== 11) Hoja de detalle del proyecto (pantalla completa) =====
+    var hoja = { p: null, clave: null, xml: null, xmlNuevo: false, cambios: false, ocupado: false, pestana: "plan", scroll: 0, buscar: "" };
+    function hojaAbierta() { return !document.getElementById("hoja").hidden; }
+
+    function prepararHoja() {
+      document.getElementById("hojaVolver").onclick = volverDeHoja;
+      document.getElementById("hojaEditar").onclick = function () { if (hoja.p) abrirDetalle(hoja.p); };
+      document.getElementById("hojaGuardar").onclick = guardarHoja;
+      document.getElementById("hojaSalirSinGuardar").onclick = function () { descartarHoja(); irAlEmbudo(); };
+      document.getElementById("hojaSeguir").onclick = function () { document.getElementById("hojaPendienteSalir").hidden = true; };
+      document.querySelectorAll(".hoja-pestanas button").forEach(function (b) {
+        b.onclick = function () { hoja.pestana = b.dataset.pestana; dibujarPestanas(); };
+      });
+      var archivo = document.getElementById("archivoPlan");
+      archivo.onchange = function () { if (archivo.files[0]) importarPlan(archivo.files[0]); };
+      window.addEventListener("hashchange", revisarDireccion);
+      window.addEventListener("beforeunload", function (e) { if (hoja.cambios) { e.preventDefault(); e.returnValue = ""; } });
+      var espera;
+      window.addEventListener("resize", function () {
+        clearTimeout(espera);
+        espera = setTimeout(function () { if (hojaAbierta()) dibujarCurva(); }, 150);
+      });
+    }
+
+    // La dirección de la página (#proyecto=C02142) dice qué hoja está abierta; así funcionan el botón Atrás y los enlaces
+    function abrirHoja(p) { location.hash = "proyecto=" + encodeURIComponent(claveDe(p)); }
+    function revisarDireccion() {
+      var m = location.hash.match(/^#proyecto=(.+)$/);
+      var clave = m ? decodeURIComponent(m[1]) : null;
+      var p = clave && proyectos.filter(function (x) { return claveDe(x) === clave; })[0];
+      if (hoja.p && hoja.clave !== clave && hoja.cambios) descartarHoja();   // con Atrás del navegador se descartan
+      if (p) mostrarHoja(p);
+      else ocultarHoja();
+    }
+    function mostrarHoja(p) {
+      if (!hojaAbierta()) hoja.scroll = window.scrollY;
+      if (hoja.p !== p) {
+        hoja.p = p; hoja.clave = claveDe(p); hoja.xml = null; hoja.xmlNuevo = false; hoja.cambios = false; hoja.buscar = "";
+        hoja.pestana = "plan";
+      }
+      document.getElementById("principal").hidden = true;
+      document.getElementById("hoja").hidden = false;
+      document.querySelector(".encabezado p").textContent = "Hoja de detalle del proyecto";
+      mensajeHoja("");
+      dibujarHoja();
+      window.scrollTo(0, 0);
+    }
+    function ocultarHoja() {
+      if (!hojaAbierta()) return;
+      hoja.p = null; hoja.clave = null; hoja.cambios = false;
+      document.getElementById("hoja").hidden = true;
+      document.getElementById("principal").hidden = false;
+      document.querySelector(".encabezado p").textContent = "Estatus de los proyectos por etapa, coordinador y cliente";
+      dibujarTodo();
+      window.scrollTo(0, hoja.scroll);
+    }
+    function irAlEmbudo() {
+      hoja.cambios = false;
+      if (location.hash) history.pushState("", document.title, location.pathname + location.search);
+      ocultarHoja();
+    }
+    function volverDeHoja() {
+      if (hoja.cambios) {
+        document.getElementById("hojaPendienteSalir").hidden = false;
+        document.getElementById("hojaPendiente").hidden = false;
+        document.getElementById("hojaPendiente").scrollIntoView({ block: "center", behavior: "smooth" });
+        return;
+      }
+      irAlEmbudo();
+    }
+    function descartarHoja() {
+      if (hoja.clave) {
+        if (detallesGuardados[hoja.clave]) detalles[hoja.clave] = copiar(detallesGuardados[hoja.clave]);
+        else delete detalles[hoja.clave];
+      }
+      hoja.xml = null; hoja.xmlNuevo = false; hoja.cambios = false;
+    }
+    function marcarCambios(texto) {
+      hoja.cambios = true;
+      var pend = document.getElementById("hojaPendiente");
+      pend.hidden = false;
+      document.getElementById("hojaPendienteSalir").hidden = true;
+      document.getElementById("hojaPendienteTexto").innerHTML = "✎ " + texto +
+        " Presiona <b>«Guardar para todos»</b> para que se queden y los vean los demás.";
+    }
+    function mensajeHoja(texto, tipo) {
+      var m = document.getElementById("hojaMensaje");
+      m.textContent = texto || "";
+      m.className = "mensaje hoja-mensaje " + (tipo || "");
+    }
+
+    function dibujarHoja() {
+      var p = hoja.p;
+      if (!p) return;
+      var d = detalleDe(hoja.clave);
+      document.getElementById("hojaToken").style.display = leerToken() ? "none" : "";
+      if (!hoja.cambios) document.getElementById("hojaPendiente").hidden = true;
+
+      // Cabecera
+      document.getElementById("hojaFolio").textContent = p.folio ? "Folio " + p.folio : "Sin folio";
+      document.getElementById("hojaTitulo").textContent = p.nombre;
+      var chips = document.getElementById("hojaChips");
+      chips.innerHTML = "";
+      if (p.etapa) {
+        var ie = parametros.etapas.indexOf(p.etapa);
+        chips.appendChild(chipColor(p.etapa, ie === -1 ? COLOR_SIN_DATO : PALETA[ie % PALETA.length]));
+      }
+      if (semaforoActivo()) {
+        var s = semaforoDe(p), luz = nuevo("span", "semaforo " + s.color);
+        luz.appendChild(nuevo("i"));
+        luz.appendChild(document.createTextNode(s.texto));
+        chips.appendChild(luz);
+      }
+      var pr = esPropia(p.propia);
+      if (pr !== null) chips.appendChild(nuevo("span", "hoja-chip", pr ? "✔ Cuadrilla propia" : "Partner"));
+
+      var datos = document.getElementById("hojaDatos");
+      datos.innerHTML = "";
+      camposDetalle().forEach(function (c) {
+        if (["nombre", "folio", "etapa", "propia"].indexOf(c) !== -1 || configCampo(c).tipo === "largo") return;
+        var caja = nuevo("div", "hoja-dato");
+        caja.appendChild(nuevo("small", "", nombreCampo(c)));
+        caja.appendChild(nuevo("b", p[c] ? "" : "vacio", p[c] || "—"));
+        datos.appendChild(caja);
+      });
+      var a = inicioDe(p), b = leerFecha(p, CAMPO_FIN);
+      if (a && b) {
+        var caja = nuevo("div", "hoja-dato");
+        caja.appendChild(nuevo("small", "", "Duración"));
+        var n = Math.round((b - a) / DIA) + 1;
+        caja.appendChild(nuevo("b", "", n + (n === 1 ? " día" : " días")));
+        datos.appendChild(caja);
+      }
+      var notas = document.getElementById("hojaNotas");
+      var campoNota = NOTAS.filter(function (c) { return p[c]; })[0];
+      notas.hidden = !campoNota;
+      notas.innerHTML = "";
+      if (campoNota) {
+        notas.appendChild(nuevo("b", "", nombreCampo(campoNota) + ": "));
+        notas.appendChild(document.createTextNode(p[campoNota]));
+      }
+
+      dibujarKpis();
+      dibujarCurva();
+      dibujarPestanas();
+    }
+    function chipColor(texto, color) {
+      var c = nuevo("span", "hoja-chip");
+      var i = nuevo("i"); i.style.background = color;
+      c.appendChild(i);
+      c.appendChild(document.createTextNode(texto));
+      return c;
+    }
+
+    function dibujarKpis() {
+      var p = hoja.p, d = detalleDe(hoja.clave), caja = document.getElementById("hojaKpis");
+      caja.innerHTML = "";
+      var tareas = d.plan ? d.plan.tareas : null;
+      function kpi(valor, texto, clase) {
+        var k = nuevo("div", "hoja-kpi" + (clase ? " " + clase : ""));
+        k.appendChild(nuevo("div", "n", valor));
+        k.appendChild(nuevo("div", "t", texto));
+        caja.appendChild(k);
+      }
+      if (tareas) {
+        var real = avanceTotal(tareas), plan = Math.round(planeadoEn(tareas, hoyMs())), dif = real - plan;
+        kpi(real + "%", "Avance real del proyecto");
+        kpi(plan + "%", "Avance que debería llevar hoy");
+        kpi((dif > 0 ? "+" : dif < 0 ? "−" : "") + Math.abs(dif) + " pts",
+          dif < 0 ? "Atraso contra el plan" : dif > 0 ? "Adelanto contra el plan" : "Va justo como el plan", dif <= -10 ? "malo" : dif < 0 ? "alerta" : "bueno");
+      } else {
+        kpi("—", "Avance real (carga el plan de trabajo)");
+        kpi("—", "Avance que debería llevar hoy");
+        kpi("—", "Diferencia contra el plan");
+      }
+      var finExcel = leerFecha(p, CAMPO_FIN), fin = finExcel || (tareas ? limitesPlan(tareas).fin : null);
+      var deQue = finExcel ? "la fecha de fin" : "el fin del plan";
+      if (fin) {
+        var hoy = Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+        var dias = Math.round((Date.UTC(new Date(fin).getUTCFullYear(), new Date(fin).getUTCMonth(), new Date(fin).getUTCDate()) - hoy) / DIA);
+        kpi(dias < 0 ? String(-dias) : String(dias), dias < 0 ? "Días de retraso (" + deQue + ")" : "Días para " + deQue, dias < 0 ? "malo" : "");
+      } else kpi("—", "Días para la fecha de fin (sin fecha)");
+      kpi(String(d.cuadrilla.length), d.cuadrilla.length === 1 ? "Persona en la cuadrilla" : "Personas en la cuadrilla");
+      if (tareas) {
+        var h = hojas(tareas), listas = h.filter(function (x) { return x.pct >= 100; }).length;
+        kpi(String(h.length), "Tareas en el plan (" + listas + (listas === 1 ? " terminada)" : " terminadas)"));
+      } else kpi("0", "Tareas en el plan");
+    }
+
+    // --- Curva S (SVG) ---
+    function svgEl(tag, attrs, padre) {
+      var e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+      Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+      if (padre) padre.appendChild(e);
+      return e;
+    }
+    function dibujarCurva() {
+      var cont = document.getElementById("curvaS"), d = hoja.clave && detalleDe(hoja.clave);
+      if (!d) return;
+      cont.innerHTML = "";
+      if (!d.plan) {
+        cont.appendChild(nuevo("div", "hoja-vacio", "La curva S se dibuja sola cuando cargues el plan de trabajo (abajo, en «Plan de trabajo»)."));
+        return;
+      }
+      var tareas = d.plan.tareas, lim = limitesPlan(tareas), ahora = hoyMs();
+      var x0 = lim.ini, x1 = Math.max(lim.fin, Math.min(ahora, lim.fin + (lim.fin - lim.ini) * 0.25));
+      if (x1 <= x0) x1 = x0 + DIA;
+      var W = Math.max(300, cont.clientWidth), chico = W < 600, H = chico ? 220 : 290;
+      var L = 42, R = chico ? 12 : 24, T = 14, B = 30;
+      var css = getComputedStyle(document.documentElement);
+      var cRejilla = css.getPropertyValue("--borde").trim(), cTexto = css.getPropertyValue("--texto-suave").trim();
+      var cReal = css.getPropertyValue("--acento").trim();
+      function x(t) { return L + (W - L - R) * (t - x0) / (x1 - x0); }
+      function y(v) { return T + (H - T - B) * (1 - v / 100); }
+      var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img",
+        "aria-label": "Curva S del proyecto: avance planeado contra real" }, cont);
+      [0, 25, 50, 75, 100].forEach(function (v) {
+        svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: cRejilla }, svg);
+        svgEl("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end", "font-size": 11, fill: cTexto }, svg).textContent = v + "%";
+      });
+      // marcas de fecha: cada semana (o cada mes si el plan es largo)
+      var dias = (x1 - x0) / DIA, paso = dias > 150 ? 30 : dias > 60 ? 14 : 7;
+      var maxMarcas = Math.floor((W - L - R) / 62);
+      while (dias / paso > maxMarcas) paso *= 2;
+      for (var t = x0; t <= x1 + 1; t += paso * DIA) {
+        svgEl("text", { x: x(t), y: H - 10, "text-anchor": "middle", "font-size": 11, fill: cTexto }, svg).textContent = fechaCorta(t);
+      }
+      // línea planeada
+      var pts = [], n = 120;
+      for (var i = 0; i <= n; i++) { var ti = x0 + (x1 - x0) * i / n; pts.push(x(ti).toFixed(1) + "," + y(planeadoEn(tareas, ti)).toFixed(1)); }
+      svgEl("path", { d: "M" + pts.join(" L"), fill: "none", stroke: cTexto, "stroke-width": 2.2, "stroke-dasharray": "7 5", opacity: .8 }, svg);
+      // línea real: inicio del plan en 0, cada avance guardado y hoy con el avance actual
+      var real = [[x0, 0]];
+      (d.historial || []).slice().sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; }).forEach(function (h) {
+        var th = msDe(h.fecha) + DIA * 0.75;
+        if (th > x0 && th < ahora) real.push([Math.min(th, x1), h.pct]);
+      });
+      var actual = avanceTotal(tareas);
+      var verHoy = ahora >= x0 && ahora <= x1;
+      if (ahora > x0) real.push([Math.min(ahora, x1), actual]);
+      var rp = real.map(function (r) { return x(r[0]).toFixed(1) + "," + y(r[1]).toFixed(1); });
+      if (real.length > 1) {
+        svgEl("path", { d: "M" + rp.join(" L") + " L" + x(real[real.length - 1][0]).toFixed(1) + "," + y(0) + " L" + x(x0) + "," + y(0) + "Z",
+          fill: cReal, "fill-opacity": .1 }, svg);
+        svgEl("path", { d: "M" + rp.join(" L"), fill: "none", stroke: cReal, "stroke-width": 3, "stroke-linejoin": "round" }, svg);
+      }
+      if (verHoy) {
+        var xh = x(ahora), planHoy = planeadoEn(tareas, ahora);
+        var izq = xh > W - R - 110;   // si hoy está muy a la derecha, las etiquetas van a la izquierda
+        svgEl("line", { x1: xh, x2: xh, y1: T, y2: H - B, stroke: "#e5484d", "stroke-width": 2 }, svg);
+        svgEl("text", { x: izq ? xh - 6 : xh + 6, y: H - B - 8, "text-anchor": izq ? "end" : "start", "font-size": 12, "font-weight": 600, fill: "#e5484d" }, svg)
+          .textContent = "Hoy · " + fechaCorta(ahora);
+        var etiquetas = [[planHoy, cTexto, "Planeado " + Math.round(planHoy) + "%"], [actual, cReal, "Real " + actual + "%"]];
+        var yPlan = y(planHoy), yReal = y(actual);
+        if (Math.abs(yPlan - yReal) < 16) { if (planHoy >= actual) { yPlan -= 8; yReal += 8; } else { yPlan += 8; yReal -= 8; } }
+        [[etiquetas[0], yPlan, y(planHoy)], [etiquetas[1], yReal, y(actual)]].forEach(function (e) {
+          svgEl("circle", { cx: xh, cy: e[2], r: 4.5, fill: e[0][1] }, svg);
+          svgEl("text", { x: izq ? xh - 9 : xh + 9, y: e[1] + 4, "text-anchor": izq ? "end" : "start", "font-size": 12, "font-weight": 600, fill: e[0][1] }, svg)
+            .textContent = e[0][2];
+        });
+      }
+    }
+
+    function dibujarPestanas() {
+      var d = detalleDe(hoja.clave);
+      document.getElementById("pestanaCuadrilla").textContent = "Cuadrilla (" + d.cuadrilla.length + ")";
+      document.querySelectorAll(".hoja-pestanas button").forEach(function (b) {
+        var si = b.dataset.pestana === hoja.pestana;
+        b.classList.toggle("activa", si);
+        b.setAttribute("aria-selected", String(si));
+      });
+      document.getElementById("panelPlan").hidden = hoja.pestana !== "plan";
+      document.getElementById("panelCuadrilla").hidden = hoja.pestana !== "cuadrilla";
+      if (hoja.pestana === "plan") dibujarPlan(); else dibujarCuadrilla();
+    }
+
+    // --- Plan de trabajo: importar / exportar XML y Gantt con % editable ---
+    function dibujarPlan() {
+      var cont = document.getElementById("panelPlan"), d = detalleDe(hoja.clave);
+      cont.innerHTML = "";
+      var barra = nuevo("div", "plan-barra");
+      var info = nuevo("div", "plan-info");
+      if (d.plan) {
+        info.appendChild(nuevo("b", "", d.plan.archivo || "Plan de trabajo"));
+        info.appendChild(nuevo("span", "", " · cargado el " + fechaCorta(msDe(d.plan.cargado), true) + (hoja.xmlNuevo ? " (sin guardar)" : "")));
+      } else info.appendChild(nuevo("span", "", "Este proyecto aún no tiene plan de trabajo."));
+      barra.appendChild(info);
+      var botones = nuevo("div", "plan-botones");
+      var imp = nuevo("button", "hoja-boton chico", d.plan ? "⬆ Cargar otra versión (XML)" : "⬆ Importar XML de Project");
+      imp.type = "button";
+      imp.onclick = function () { var a = document.getElementById("archivoPlan"); a.value = ""; a.click(); };
+      botones.appendChild(imp);
+      if (d.plan) {
+        var exp = nuevo("button", "hoja-boton chico", "⬇ Exportar XML (con avances)");
+        exp.type = "button";
+        exp.onclick = exportarPlan;
+        botones.appendChild(exp);
+      }
+      barra.appendChild(botones);
+      cont.appendChild(barra);
+
+      if (!d.plan) {
+        var vacio = nuevo("div", "hoja-vacio");
+        vacio.innerHTML = "<b>¿Cómo se carga?</b> En Microsoft Project abre el plan y usa <b>Archivo › Guardar como</b>, " +
+          "elige el tipo <b>XML (*.xml)</b>. Luego presiona «Importar XML de Project» y elige ese archivo.<br>" +
+          "Después podrás escribir aquí el % de avance de cada tarea y exportarlo de nuevo para abrirlo en Project.";
+        cont.appendChild(vacio);
+        return;
+      }
+      cont.appendChild(gantt(d.plan.tareas));
+    }
+
+    function gantt(tareas) {
+      var lim = limitesPlan(tareas), x0 = lim.ini, x1 = Math.max(lim.fin, x0 + DIA), largo = x1 - x0, ahora = hoyMs();
+      function pos(t) { return ((t - x0) / largo * 100).toFixed(2) + "%"; }
+      var tabla = nuevo("div", "gantt");
+      var enc = nuevo("div", "gantt-fila gantt-enc");
+      ["Tarea", "Inicio", "Fin", "% avance"].forEach(function (t, i) { enc.appendChild(nuevo("div", i === 1 || i === 2 ? "g-fecha" : "", t)); });
+      var escala = nuevo("div", "g-linea g-escala");
+      var dias = largo / DIA, paso = dias > 150 ? 30 : dias > 60 ? 14 : 7;
+      for (var t = x0; t < x1; t += paso * DIA) {
+        var m = nuevo("span", "", fechaCorta(t));
+        m.style.left = pos(t);
+        escala.appendChild(m);
+      }
+      enc.appendChild(escala);
+      tabla.appendChild(enc);
+
+      tareas.forEach(function (x) {
+        var fila = nuevo("div", "gantt-fila" + (x.resumen ? " resumen" : ""));
+        var nom = nuevo("div", "g-nombre", (x.hito ? "◆ " : "") + x.nombre);
+        nom.style.paddingLeft = (10 + (x.nivel - 1) * 16) + "px";
+        nom.title = x.nombre;
+        fila.appendChild(nom);
+        fila.appendChild(nuevo("div", "g-fecha", fechaCorta(msDe(x.inicio))));
+        fila.appendChild(nuevo("div", "g-fecha", fechaCorta(msDe(x.fin))));
+        var celPct = nuevo("div", "g-pct");
+        if (x.resumen) celPct.appendChild(nuevo("b", "", x.pct + "%"));
+        else {
+          var inp = document.createElement("input");
+          inp.type = "number"; inp.min = 0; inp.max = 100; inp.step = 5; inp.value = x.pct;
+          inp.dataset.uid = x.uid;
+          inp.setAttribute("aria-label", "% de avance de " + x.nombre);
+          if (x._cambio) inp.classList.add("cambio");
+          inp.onchange = function () {
+            var v = Math.max(0, Math.min(100, Math.round(+inp.value || 0)));
+            inp.value = v;
+            if (v === x.pct) return;
+            x.pct = v; x._cambio = true;
+            var d = detalleDe(hoja.clave);
+            recalcularResumenes(d.plan.tareas);
+            var n = d.plan.tareas.filter(function (t) { return t._cambio; }).length;
+            marcarCambios("Cambiaste el avance de " + n + (n === 1 ? " tarea." : " tareas.") + " Al exportar el XML ya van incluidos.");
+            var foco = inp.dataset.uid;
+            dibujarKpis(); dibujarCurva(); dibujarPlan();
+            var sig = document.querySelector('#panelPlan input[data-uid="' + foco + '"]');
+            if (sig) sig.focus();
+          };
+          celPct.appendChild(inp);
+          celPct.appendChild(nuevo("span", "", "%"));
+        }
+        fila.appendChild(celPct);
+        var linea = nuevo("div", "g-linea");
+        var a = msDe(x.inicio), b = msDe(x.fin);
+        var barra = nuevo("div", "g-barra" + (x.resumen ? " resumen" : "") + (x.hito || b <= a ? " hito" : "") + (x.pct >= 100 ? " lista" : ""));
+        barra.style.left = pos(a);
+        if (!(x.hito || b <= a)) barra.style.width = "max(4px, " + ((b - a) / largo * 100).toFixed(2) + "%)";
+        var lleno = nuevo("span"); lleno.style.width = x.pct + "%";
+        barra.appendChild(lleno);
+        barra.title = x.nombre + ": " + fechaCorta(a, true) + " – " + fechaCorta(b, true) + " · " + x.pct + "%";
+        linea.appendChild(barra);
+        if (ahora >= x0 && ahora <= x1) { var hoyL = nuevo("i", "g-hoy"); hoyL.style.left = pos(ahora); linea.appendChild(hoyL); }
+        fila.appendChild(linea);
+        tabla.appendChild(fila);
+      });
+      return tabla;
+    }
+
+    function importarPlan(archivo) {
+      var lector = new FileReader();
+      lector.onload = function () {
+        try {
+          var texto = lector.result;
+          var leido = leerXMLProject(texto);
+          var d = detalleDe(hoja.clave);
+          recalcularResumenes(leido.tareas);
+          d.plan = { archivo: archivo.name, cargado: hoyISO(), titulo: leido.titulo || "", tareas: leido.tareas };
+          hoja.xml = texto; hoja.xmlNuevo = true;
+          marcarCambios("Cargaste el plan «" + archivo.name + "» (" + hojas(leido.tareas).length + " tareas).");
+          mensajeHoja("");
+          dibujarHoja();
+        } catch (e) { mensajeHoja(e.message, "mal"); }
+      };
+      lector.onerror = function () { mensajeHoja("No se pudo abrir el archivo.", "mal"); };
+      lector.readAsText(archivo);
+    }
+
+    // El XML original: el que se acaba de cargar, o el guardado en planes/
+    function xmlDelPlan() {
+      if (hoja.xml) return Promise.resolve(hoja.xml);
+      return fetch(archivoPlan(hoja.clave) + "?v=" + Date.now()).then(function (r) {
+        if (!r.ok) throw new Error("No se encontró el archivo del plan. Vuelve a cargarlo.");
+        return r.text();
+      }).then(function (t) { hoja.xml = t; return t; });
+    }
+    function exportarPlan() {
+      var d = detalleDe(hoja.clave);
+      xmlDelPlan().then(function (texto) {
+        var nombre = (d.plan.archivo || (hoja.clave + ".xml")).replace(/\.xml$/i, "") + "-avance-" + hoyISO() + ".xml";
+        descargar(nombre, xmlConAvances(texto, d.plan.tareas), "application/xml");
+        mensajeHoja("Se descargó «" + nombre + "». Ábrelo en Project con Archivo › Abrir.", "ok");
+      }).catch(function (e) { mensajeHoja(e.message, "mal"); });
+    }
+
+    // --- Cuadrilla ---
+    function dibujarCuadrilla() {
+      var cont = document.getElementById("panelCuadrilla"), d = detalleDe(hoja.clave), p = hoja.p;
+      cont.innerHTML = "";
+      var personas = nuevo("div", "personas");
+      if (!d.cuadrilla.length) personas.appendChild(nuevo("div", "hoja-vacio", "Todavía no hay personas en la cuadrilla de este proyecto."));
+      d.cuadrilla.forEach(function (nombre, i) {
+        var ir = indiceRecurso(nombre), r = parametros.recursos[ir] || { nombre: nombre };
+        var c = nuevo("div", "persona");
+        c.appendChild(avatar(nombre, ir === -1 ? i : ir));
+        var t = nuevo("div", "persona-texto");
+        t.appendChild(nuevo("div", "persona-nombre", nombre));
+        var extra = [r.puesto, r.correo, r.telefono].filter(Boolean).join(" · ");
+        t.appendChild(nuevo("div", "persona-rol", ir === -1 ? "Ya no está en ⚙ Parámetros › Recursos" : (extra || "Sin puesto")));
+        c.appendChild(t);
+        var choques = choquesDe(nombre, p);
+        if (choques.length) {
+          var av = nuevo("div", "persona-choque", "⚠ También en " + choques.map(nombreCorto).join(", "));
+          t.appendChild(av);
+        }
+        var q = nuevo("button", "persona-quitar", "✕");
+        q.type = "button"; q.title = "Quitar de la cuadrilla"; q.setAttribute("aria-label", "Quitar a " + nombre);
+        q.onclick = function () {
+          d.cuadrilla.splice(i, 1);
+          marcarCambios("Cambiaste la cuadrilla.");
+          dibujarKpis(); dibujarPestanas();
+        };
+        c.appendChild(q);
+        personas.appendChild(c);
+      });
+      cont.appendChild(personas);
+
+      // Agregar personas desde Recursos
+      var sel = nuevo("div", "selector-personas");
+      var cab = nuevo("div", "selector-cab");
+      cab.appendChild(nuevo("b", "", "＋ Agregar persona"));
+      var fechas = textoFechas(p);
+      cab.appendChild(nuevo("span", "", "Fechas de este proyecto: " + fechas));
+      sel.appendChild(cab);
+      if (intervaloDe(p).sinFechas) {
+        sel.appendChild(nuevo("div", "selector-aviso", "Este proyecto no tiene fecha de inicio y de fin completas, así que se toma como si ocupara todo el tiempo. " +
+          "Ponle fechas con «✏ Editar datos» para que la validación sea exacta."));
+      }
+      var disponibles = parametros.recursos.filter(function (r) {
+        return !d.cuadrilla.some(function (x) { return normalizar(x) === normalizar(r.nombre); });
+      }).map(function (r) { return { r: r, ocupado: choquesDe(r.nombre, p).length > 0 }; })
+        .sort(function (a, b) { return a.ocupado - b.ocupado || a.r.nombre.localeCompare(b.r.nombre, "es"); })   // disponibles primero
+        .map(function (x) { return x.r; });
+      if (!parametros.recursos.length) {
+        sel.appendChild(nuevo("div", "selector-aviso", "Primero agrega a las personas en ⚙ Parámetros › Recursos para cuadrillas."));
+      } else if (!disponibles.length) {
+        sel.appendChild(nuevo("div", "selector-aviso", "Todas las personas de Recursos ya están en esta cuadrilla."));
+      } else {
+        var buscar = document.createElement("input");
+        buscar.className = "selector-buscar";
+        buscar.placeholder = "Buscar por nombre o puesto…";
+        buscar.value = hoja.buscar;
+        sel.appendChild(buscar);
+        var lista = nuevo("div", "selector-lista");
+        sel.appendChild(lista);
+        var pintar = function () {
+          lista.innerHTML = "";
+          var f = normalizar(buscar.value || "");
+          disponibles.filter(function (r) { return !f || normalizar(r.nombre + " " + (r.puesto || "")).indexOf(f) !== -1; }).forEach(function (r) {
+            var choques = choquesDe(r.nombre, p);
+            var op = nuevo("button", "opcion-persona" + (choques.length ? " ocupada" : ""));
+            op.type = "button";
+            op.disabled = !!choques.length;
+            op.appendChild(avatar(r.nombre, indiceRecurso(r.nombre)));
+            op.appendChild(nuevo("span", "op-nombre", r.nombre + (r.puesto ? " · " + r.puesto : "")));
+            op.appendChild(nuevo("span", "op-estado " + (choques.length ? "ocupado" : "libre"),
+              choques.length ? "Ocupado: " + choques.map(function (q) { return nombreCorto(q) + " (" + textoFechas(q) + ")"; }).join(", ") : "Disponible"));
+            op.onclick = function () {
+              d.cuadrilla.push(r.nombre);
+              hoja.buscar = "";
+              marcarCambios("Cambiaste la cuadrilla.");
+              dibujarKpis(); dibujarPestanas();
+            };
+            lista.appendChild(op);
+          });
+          if (!lista.children.length) lista.appendChild(nuevo("div", "selector-aviso", "Nadie coincide con la búsqueda."));
+        };
+        buscar.oninput = function () { hoja.buscar = buscar.value; pintar(); };
+        pintar();
+      }
+      cont.appendChild(sel);
+      cont.appendChild(nuevo("p", "hoja-sub", "Las personas que ya están en otro proyecto con fechas que se cruzan aparecen en gris y no se pueden elegir. " +
+        "Los proyectos Concluidos o Cerrados ya no ocupan a nadie."));
+    }
+
+    // --- Guardar la hoja: plan (XML) y detalles.json ---
+    // detalles.json se lee de nuevo antes de guardar y solo se cambia este proyecto, para no borrar lo que otros guardaron.
+    function subirDetalleProyecto(token, clave, valor, mensajeCommit) {
+      var url = "https://api.github.com/repos/" + REPO + "/contents/" + ARCHIVO_DETALLES;
+      var cabeceras = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" };
+      var todo;
+      return fetch(url, { headers: cabeceras, cache: "no-store" })
+        .then(function (r) {
+          if (r.status === 401) throw new Error("La clave no es válida.");
+          if (r.status === 404) return {};
+          if (!r.ok) throw new Error("No se pudo leer " + ARCHIVO_DETALLES + " (error " + r.status + ").");
+          return r.json();
+        })
+        .then(function (actual) {
+          todo = {};
+          if (actual.content) {
+            try { todo = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(actual.content.replace(/\s/g, "")), function (c) { return c.charCodeAt(0); }))); }
+            catch (e) { todo = {}; }
+          }
+          todo[clave] = valor;
+          var cuerpo = { message: mensajeCommit, content: textoABase64(JSON.stringify(todo, null, 2) + "\n") };
+          if (actual.sha) cuerpo.sha = actual.sha;
+          return fetch(url, { method: "PUT", headers: cabeceras, body: JSON.stringify(cuerpo) });
+        })
+        .then(function (r) {
+          if (r.status === 401) throw new Error("La clave no es válida.");
+          if (r.status === 409) throw new Error("Alguien más guardó al mismo tiempo. Intenta de nuevo.");
+          if (r.status === 403 || r.status === 404) throw new Error("La clave no tiene permiso para guardar en este repositorio.");
+          if (!r.ok) throw new Error("No se pudo guardar " + ARCHIVO_DETALLES + " (error " + r.status + ").");
+          return todo;
+        });
+    }
+
+    function guardarHoja() {
+      if (!hoja.p || hoja.ocupado) return;
+      if (!hoja.cambios) { mensajeHoja("No hay cambios que guardar."); return; }
+      var token = leerToken() || document.getElementById("hojaToken").value.trim();
+      if (!token) { mensajeHoja("Pega tu clave de GitHub (arriba, junto a «Guardar para todos») para poder guardar.", "mal"); document.getElementById("hojaToken").focus(); return; }
+      var clave = hoja.clave, d = detalleDe(clave), folio = hoja.p.folio || hoja.p.nombre;
+      // historial de la curva S: el avance de hoy (si ya había uno de hoy, se reemplaza)
+      if (d.plan) {
+        var pct = avanceTotal(d.plan.tareas), hoyT = hoyISO();
+        d.historial = d.historial.filter(function (h) { return h.fecha !== hoyT; });
+        d.historial.push({ fecha: hoyT, pct: pct });
+        d.historial.sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; });
+      }
+      var limpio = JSON.parse(JSON.stringify(d, function (k, v) { return k.charAt(0) === "_" ? undefined : v; }));
+      if (d.plan) limpio.plan.xml = archivoPlan(clave);
+      var cambioPct = d.plan && d.plan.tareas.some(function (t) { return t._cambio; });
+
+      hoja.ocupado = true;
+      document.getElementById("hojaGuardar").disabled = true;
+      mensajeHoja("Guardando…");
+      var pasoPlan = (d.plan && (hoja.xmlNuevo || cambioPct))
+        ? xmlDelPlan().then(function (texto) {
+            return subirArchivo(token, archivoPlan(clave), textoABase64(xmlConAvances(texto, d.plan.tareas)),
+              (hoja.xmlNuevo ? "Cargar plan de trabajo de " : "Actualizar avance del plan de ") + folio + " desde la página");
+          })
+        : Promise.resolve();
+      pasoPlan
+        .then(function () { return subirDetalleProyecto(token, clave, limpio, "Actualizar hoja de detalle de " + folio + " desde la página"); })
+        .then(function (todo) {
+          escribirToken(token);
+          document.getElementById("hojaToken").value = "";
+          // lo que otros guardaron de otros proyectos también se actualiza aquí
+          Object.keys(todo).forEach(function (k) { if (k !== clave) detalles[k] = todo[k]; });
+          if (d.plan) d.plan.tareas.forEach(function (t) { delete t._cambio; });
+          if (d.plan) d.plan.xml = archivoPlan(clave);
+          detallesGuardados = copiar(detalles);
+          hoja.xmlNuevo = false; hoja.cambios = false; hoja.ocupado = false;
+          if (hoja.xml && d.plan) hoja.xml = xmlConAvances(hoja.xml, d.plan.tareas);
+          document.getElementById("hojaGuardar").disabled = false;
+          dibujarHoja();
+          mensajeHoja("¡Guardado! Los demás lo verán en 1 o 2 minutos.", "ok");
+        })
+        .catch(function (e) {
+          hoja.ocupado = false;
+          document.getElementById("hojaGuardar").disabled = false;
+          mensajeHoja(e.message + " No se guardó.", "mal");
         });
     }
 
